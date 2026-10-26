@@ -294,6 +294,7 @@ if (/KAKAOTALK/i.test(navigator.userAgent)) window.openInChrome();
       <div class="half top">
         <h1 id="title">폰으로 찍은 스윙,<br>3D로 돌려 보세요</h1>
         <p class="lede" id="lede">스윙 영상 하나로 자세를 3D로 복원하고, 프로 기준과 비교해 다음 연습에서 고칠 점을 알려 드려요.</p>
+        <label class="agree" id="agreeStartRow" hidden><input type="checkbox" id="agreeStart"><span>분석 개선을 위해 이 스윙의 관절 좌표와 수치를 보내는 데 동의해요 (선택, 만 14세 이상 · <a href="privacy.html" target="_blank" rel="noopener">안내</a>). 영상은 보내지 않아요.</span></label>
         <button type="button" class="ball-btn" id="pick"><svg class="icon"><use href="#i-upload"/></svg>스윙 영상 올리기</button>
         <div id="progress" hidden aria-live="polite">
           <div id="previewSlot"></div>
@@ -913,6 +914,7 @@ async function analyzeVideo(file) {
     current = { pts, pts2d, fps, hasVideo: true,
       note: `${fps}fps · ${pts.length}프레임` + (video.duration > MAX_SEC ? ` · 최대 ${MAX_SEC}초라 앞부분만 분석` : "") };
     finish();
+    if (firebaseConfig && $("agreeStart").checked) { $("agree").checked = true; sendContribution(); }
   } catch (err) {
     showError(err.message);
   } finally {
@@ -1097,7 +1099,9 @@ function contributionPayload() {
   return out;
 }
 $("agree").onchange = () => { $("send").disabled = !$("agree").checked || sentFor === current; };
-$("send").onclick = async () => {
+$("agreeStartRow").hidden = !firebaseConfig;
+$("send").onclick = () => sendContribution();
+async function sendContribution() {
   $("send").disabled = true;
   $("sendStatus").textContent = "보내는 중...";
   try {
@@ -1111,7 +1115,7 @@ $("send").onclick = async () => {
     $("sendStatus").textContent = "보내지 못했어요. 잠시 뒤 다시 눌러 주세요.";
     $("send").disabled = false;
   }
-};
+}
 
 $("save").onclick = () => {
   if (IN_KAKAO) { $("saveNote").hidden = false; return; }

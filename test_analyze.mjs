@@ -7,13 +7,16 @@ const tips = JSON.parse(readFileSync(new URL("./tips.json", import.meta.url), "u
 for (const c of fx.cases) {
   const m = analyze(smooth(c.pts, c.fps), c.fps);
   const py = c.expected;
-  const fail = msg => { throw new Error(`fps=${c.fps}: ${msg}\nJS: ${JSON.stringify(m)}\nPY: ${JSON.stringify(py)}`); };
+  const { speed, series, ...shown } = m;
+  const fail = msg => { throw new Error(`fps=${c.fps}: ${msg}\nJS: ${JSON.stringify(shown)}\nPY: ${JSON.stringify(py)}`); };
   if (JSON.stringify(m.phases) !== JSON.stringify(py.phases)) fail("phases");
   if (JSON.stringify(m.chain_peaks) !== JSON.stringify(py.chain_peaks)) fail("chain_peaks");
   if (m.chain_ok !== py.chain_ok) fail("chain_ok");
   if (Math.abs(m.impact_speed - py.impact_speed) > 0.011) fail("impact_speed");
   for (const ph in py.angles) for (const k in py.angles[ph])
     if (Math.abs(m.angles[ph][k] - py.angles[ph][k]) > 1) fail(`angle ${ph} ${k}`);
-  report(m, c.fps, fx.ref, tips); // 예외 없이 만들어지는지만 확인
+  // 리포트 문구가 Python 과 같은지 (반올림 차이가 없는 경우에 한해 정확히 일치)
+  const text = report(m, c.fps, fx.ref, tips);
+  if (text !== c.report) fail(`report\n--- JS\n${text}\n--- PY\n${c.report}`);
 }
 console.log("js ok");

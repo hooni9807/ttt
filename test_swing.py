@@ -64,7 +64,7 @@ if shutil.which("node"):
     for fps in (60, 240):
         r = analyze(smooth(holes, fps), fps)
         r.pop("speed")
-        cases.append({"fps": fps, "expected": r,
+        cases.append({"fps": fps, "expected": r, "report": report(r, fps, json.loads(Path("pro_ranges.json").read_text())),
                       "pts": [None if np.isnan(f).all() else f.tolist() for f in holes]})
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
         json.dump({"cases": cases, "ref": json.loads(Path("pro_ranges.json").read_text())}, f, ensure_ascii=False)

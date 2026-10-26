@@ -2,125 +2,602 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TTT 스윙 분석</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0B2340">
+<title>TTT · 탁구 스윙 3D 분석</title>
+<meta name="description" content="폰으로 찍은 탁구 스윙 영상 하나로 3D 자세를 복원하고, 프로 기준과 비교해 다음 연습에서 고칠 점을 알려 드립니다. 영상은 기기 밖으로 나가지 않습니다.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
-  :root { --bg: #111; --fg: #eee; --muted: #9a9a9a; --line: #444; --panel: #1c1c1c; --accent: #4fc3f7; }
-  body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--fg); }
-  header { padding: 16px; }
-  h1 { margin: 0 0 4px; font-size: 22px; }
-  .muted { color: var(--muted); font-size: 14px; margin: 0; }
-  #pick { padding: 0 16px 12px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-  .upload { background: var(--accent); color: #000; font-weight: 600; padding: 10px 16px; border-radius: 8px; cursor: pointer; }
-  .upload input { display: none; }
-  #status { padding: 0 16px 12px; min-height: 20px; }
-  progress { width: min(400px, 100%); vertical-align: middle; }
-  main { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 16px; height: 60vh; }
-  @media (max-width: 700px) { main { grid-template-columns: 1fr; height: auto; } #view, video { height: 45vh; } }
-  video, #view { width: 100%; height: 100%; background: #000; border-radius: 8px; overflow: hidden; }
-  #ctl { padding: 12px 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  #seek { flex: 1; min-width: 160px; }
-  #report { margin: 0 16px 24px; padding: 12px 16px; background: var(--panel); border-radius: 8px; white-space: pre-wrap; font: 14px/1.6 ui-monospace, monospace; }
-  button, select { background: #333; color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
-  button:disabled { opacity: .4; cursor: default; }
-  details { padding: 0 16px 24px; color: var(--muted); font-size: 14px; }
+  :root {
+    --floor: #0B2340;      /* 탁구장 바닥 */
+    --table: #17457A;      /* 상판 */
+    --table-deep: #123A66;
+    --line: #FFFFFF;       /* 경계선·네트선 */
+    --ball: #F28C28;       /* 공: 누를 수 있는 것과 임팩트에만 */
+    --ink: #FFFFFF;
+    --ink-2: #C9D8EC;
+    --ink-3: #9DB4D3;
+    --ok: #7FD8A6;
+    --warn: #FF9A8A;
+    --ease: cubic-bezier(.16, 1, .3, 1);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { background: var(--floor); -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; min-height: 100dvh; background: var(--floor); color: var(--ink);
+    font: 400 16px/1.6 "Pretendard Variable", Pretendard, system-ui, sans-serif;
+    font-variant-numeric: tabular-nums; caret-color: var(--ball); word-break: keep-all; overflow-wrap: anywhere;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  ::selection { background: var(--ball); color: var(--floor); }
+  * { scrollbar-color: var(--table) var(--floor); }
+  :focus-visible { outline: 3px solid var(--ball); outline-offset: 3px; border-radius: 6px; }
+  h1, h2, h3, p, ol, ul, dl, dd, figure { margin: 0; }
+  ul, ol { padding: 0; list-style: none; }
+  button, select { font: inherit; color: inherit; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .icon { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  .wrap { width: min(1180px, 100%); margin: 0 auto; padding: 0 16px; }
+
+  /* 상단 바 */
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; }
+  .mark { font-weight: 900; font-size: 22px; letter-spacing: .18em; color: var(--ink); text-decoration: none; }
+  .seg { display: inline-flex; border: 2px solid var(--line); border-radius: 999px; padding: 2px; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label { padding: 6px 14px; border-radius: 999px; font-size: 14px; font-weight: 600; cursor: pointer; color: var(--ink-2); min-height: 44px; display: flex; align-items: center; }
+  .seg input:checked + label { background: var(--line); color: var(--floor); }
+  .seg input:focus-visible + label { outline: 3px solid var(--ball); outline-offset: 2px; }
+
+  /* 상판: 흰 경계선 + 네트선 + 센터라인 토막 */
+  .table { position: relative; background: var(--table); border: 5px solid var(--line); border-radius: 6px; }
+  .table::before, .table::after { content: ""; position: absolute; left: 50%; width: 2px; height: 22px; margin-left: -1px; background: var(--line); opacity: .7; }
+  .table::before { top: 0; }
+  .table::after { bottom: 0; }
+  .net { height: 3px; background: var(--line); }
+  .half { padding: 32px 22px; }
+
+  /* 시작 화면 */
+  #start .top { display: grid; gap: 18px; justify-items: start; }
+  #start h1 { font-size: clamp(28px, 7vw, 44px); line-height: 1.2; font-weight: 800; letter-spacing: -.02em; text-wrap: balance; }
+  .lede { color: var(--ink-2); max-width: 34em; }
+  .ball-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    min-height: 56px; padding: 0 28px; border: 0; border-radius: 999px; cursor: pointer;
+    background: var(--ball); color: var(--floor); font-size: 18px; font-weight: 800;
+    box-shadow: 0 6px 18px rgba(3, 12, 26, .35); transition: transform .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  .ball-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(3, 12, 26, .4); }
+  .ball-btn:active { transform: translateY(1px); }
+  #start .ball-btn { width: 100%; max-width: 420px; }
+  .promise { display: flex; gap: 8px; align-items: flex-start; color: var(--ink-2); font-size: 14px; }
+  .promise .icon { width: 18px; height: 18px; margin-top: 2px; }
+  #start h2, .below h2 { font-size: 18px; font-weight: 800; margin-bottom: 14px; }
+  .tips li { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid rgba(255,255,255,.22); color: var(--ink-2); }
+  .tips li:first-child { border-top: 0; padding-top: 0; }
+  .tips .icon { color: var(--ink); }
+  .text-btn { display: inline-flex; gap: 8px; align-items: center; margin-top: 18px; padding: 8px 0; background: none; border: 0; color: var(--ink-2); font-size: 14px; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: rgba(255,255,255,.4); }
+  .text-btn:hover { color: var(--ink); }
+
+  /* 분석 진행: 지금 단계 하나만 */
+  #progress { width: 100%; display: grid; gap: 12px; }
+  #previewSlot video { width: 100%; max-height: 38vh; object-fit: contain; background: #061528; border-radius: 6px; display: block; }
+  #step { font-size: 22px; font-weight: 800; }
+  #stepSub { color: var(--ink-2); font-size: 14px; min-height: 1.6em; }
+  .rail { position: relative; height: 22px; }
+  .rail::before { content: ""; position: absolute; left: 0; right: 0; top: 10px; height: 3px; background: rgba(255,255,255,.3); }
+  .rail .fill { position: absolute; left: 0; top: 10px; height: 3px; width: calc(var(--p, 0) * 100%); background: var(--line); transition: width .25s linear; }
+  .rail .ball { position: absolute; top: 2px; left: calc(var(--p, 0) * (100% - 18px)); width: 18px; height: 18px; border-radius: 50%; background: var(--ball); box-shadow: 0 3px 8px rgba(3,12,26,.45); transition: left .25s linear; }
+  #progress.waiting .ball { animation: roll 1.4s var(--ease) infinite alternate; }
+  @keyframes roll { from { left: 0; } to { left: calc(100% - 18px); } }
+  #err { display: flex; gap: 10px; align-items: flex-start; color: var(--warn); font-weight: 600; }
+
+  /* 결과 화면 */
+  #result { animation: rise .5s var(--ease); }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } }
+  .stage { display: grid; grid-template-columns: 1fr; }
+  .stage::before, .stage::after { display: none; }
+  .views { position: relative; display: grid; grid-template-columns: 1fr; }
+  #view { height: min(62vh, 560px); min-height: 340px; cursor: grab; touch-action: none; }
+  #view:active { cursor: grabbing; }
+  #view canvas { display: block; }
+  .views video {
+    position: absolute; left: 12px; top: 12px; width: 32%; max-width: 220px; max-height: 45%;
+    object-fit: cover; border: 2px solid var(--line); border-radius: 6px; background: #061528;
+  }
+  .stage.no-video .views video { display: none; }
+  .hint { position: absolute; right: 14px; bottom: 12px; font-size: 12px; color: var(--ink-3); pointer-events: none; }
+  .meta { position: absolute; right: 14px; top: 12px; font-size: 12px; color: var(--ink-3); text-align: right; }
+
+  .controls { display: flex; align-items: center; gap: 10px; padding: 14px 16px 6px; }
+  .icon-btn { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--line); background: transparent; cursor: pointer; }
+  .icon-btn:hover { background: rgba(255,255,255,.1); }
+  select { height: 44px; padding: 0 10px; border-radius: 8px; border: 2px solid rgba(255,255,255,.5); background: var(--table-deep); font-size: 14px; }
+  /* 스크러버: 흰 네트선 위를 굴러가는 공 */
+  input[type=range] { flex: 1; min-width: 0; height: 44px; background: transparent; -webkit-appearance: none; appearance: none; cursor: pointer; }
+  input[type=range]::-webkit-slider-runnable-track { height: 3px; background: var(--line); border-radius: 2px; }
+  input[type=range]::-moz-range-track { height: 3px; background: var(--line); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -9.5px; border-radius: 50%; background: var(--ball); border: 0; box-shadow: 0 3px 8px rgba(3,12,26,.45); }
+  input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--ball); border: 0; }
+  input[type=range]:focus-visible { outline-offset: 0; }
+  .frame { font-size: 13px; color: var(--ink-2); min-width: 64px; text-align: right; }
+
+  .phases { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 6px 16px 14px; }
+  .phases button { min-height: 44px; border-radius: 999px; border: 2px solid var(--line); background: transparent; font-weight: 700; cursor: pointer; }
+  .phases button[aria-pressed=true] { background: var(--line); color: var(--floor); }
+  .readout { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 3px solid var(--line); }
+  .readout div { padding: 12px 10px 14px; border-left: 1px solid rgba(255,255,255,.22); }
+  .readout div:first-child { border-left: 0; }
+  .readout dt { font-size: 12px; color: var(--ink-2); }
+  .readout dd { font-size: 20px; font-weight: 800; line-height: 1.3; }
+  .readout dd small { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-left: 2px; }
+
+  .below { display: grid; gap: 40px; padding: 40px 0 56px; }
+  .below section > p.sub { color: var(--ink-2); font-size: 14px; margin: -8px 0 16px; }
+  /* 다음에 고칠 것: 숫자보다 먼저, 상판 위에 */
+  .callout { padding: 32px 22px 28px; }
+  .callout h2 { font-size: 22px; }
+  .fb li { padding: 18px 0; border-top: 1px solid rgba(255,255,255,.25); }
+  .fb li:first-child { border-top: 0; padding-top: 0; }
+  .fb h3 { display: flex; gap: 8px; align-items: center; font-size: 15px; color: var(--warn); margin-bottom: 6px; }
+  .fb p { font-size: 20px; font-weight: 700; line-height: 1.45; max-width: 36em; }
+  .fb .detail { font-size: 14px; font-weight: 400; color: var(--ink-2); margin-top: 8px; }
+  .fb .none { color: var(--ink-2); font-size: 17px; font-weight: 500; }
+
+  .speed { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin-bottom: 18px; }
+  .speed strong { font-size: 28px; font-weight: 800; }
+  .speed span { color: var(--ink-2); font-size: 14px; }
+  .plates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
+  .plates figure { background: var(--table); border: 3px solid var(--line); border-radius: 6px; padding: 6px 6px 8px; }
+  .plates svg { display: block; width: 100%; height: auto; }
+  .plates figcaption { text-align: center; font-size: 13px; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { padding: 10px 6px; text-align: left; vertical-align: top; border-top: 1px solid rgba(255,255,255,.18); }
+  thead th { border-top: 0; font-size: 13px; color: var(--ink-2); font-weight: 600; }
+  tbody th { font-weight: 700; white-space: nowrap; }
+  td b { font-size: 17px; }
+  td .r { display: flex; gap: 4px; align-items: center; font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+  td .r .icon { width: 14px; height: 14px; }
+  td.ok .r { color: var(--ok); }
+  td.warn .r { color: var(--warn); }
+  .fine { font-size: 13px; color: var(--ink-3); margin-top: 12px; }
+
+  .chain { display: grid; gap: 10px; }
+  .chain .axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-3); margin-left: 64px; }
+  .lane { display: grid; grid-template-columns: 56px 1fr; gap: 8px; align-items: center; }
+  .lane > span { font-size: 14px; font-weight: 700; }
+  .track { position: relative; height: 40px; }
+  .track::before { content: ""; position: absolute; left: 0; right: 0; top: 27px; height: 2px; background: rgba(255,255,255,.35); }
+  .track::after { content: ""; position: absolute; right: 0; top: 18px; width: 2px; height: 20px; background: var(--ball); }
+  .dot { position: absolute; top: 20px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: var(--line); }
+  .dot em { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+  .dot.flip em { left: auto; right: -2px; transform: none; }
+  .verdict { display: flex; gap: 8px; align-items: center; margin-top: 14px; font-weight: 700; }
+  .verdict.ok { color: var(--ok); }
+  .verdict.warn { color: var(--warn); }
+
+  details { color: var(--ink-3); font-size: 13px; }
+  summary { cursor: pointer; color: var(--ink-2); padding: 6px 0; }
+  details li { padding: 6px 0; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .ghost-btn { display: inline-flex; gap: 8px; align-items: center; min-height: 48px; padding: 0 20px; border-radius: 999px; border: 2px solid var(--line); background: transparent; font-weight: 700; cursor: pointer; }
+  .ghost-btn:hover { background: rgba(255,255,255,.1); }
+
+  .tips { max-width: 34em; }
+  @media (min-width: 900px) {
+    .half { padding: 44px 48px; }
+    /* 상판의 두 코트: 왼쪽에 올리기, 네트 건너 오른쪽에 촬영 팁 */
+    #start { display: grid; grid-template-columns: 1fr 3px 1fr; }
+    #start .net { height: auto; }
+    #start::before, #start::after { display: none; }
+    #start .half:last-child { align-self: center; }
+    /* 영상이 있어도 3D 가 더 크게 */
+    .views { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+    .callout { padding: 40px 48px 36px; }
+    .views video { position: static; width: 100%; max-width: none; max-height: none; height: min(62vh, 560px); border: 0; border-radius: 0; object-fit: contain; }
+    .views #view { border-left: 3px solid var(--line); }
+    .stage.no-video .views { grid-template-columns: 1fr; }
+    .stage.no-video .views #view { border-left: 0; }
+    .meta { right: 14px; }
+    .below { grid-template-columns: 1fr 1fr; column-gap: 56px; }
+    .below .wide { grid-column: 1 / -1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>TTT 탁구 스윙 분석</h1>
-  <p class="muted">스윙 영상을 올리면 3D 자세를 복원해 프로 기준과 비교하고 피드백을 드립니다. 영상은 서버로 전송되지 않고 이 브라우저 안에서만 분석됩니다.</p>
-</header>
-<div id="pick">
-  <label class="upload">스윙 영상 올리기<input type="file" id="vid" accept="video/*"></label>
-  <select id="hand"><option value="R">오른손잡이</option><option value="L">왼손잡이</option></select>
-  <button id="save" disabled>결과 JSON 저장</button>
-  <label class="muted">분석 JSON 열기 <input type="file" id="json" accept=".json"></label>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" fill="currentColor"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" stroke-width="3"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></symbol>
+  <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M12 14l4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/></symbol>
+  <symbol id="i-once" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></symbol>
+</svg>
+
+<input type="file" id="vid" class="sr-only" accept="video/*" tabindex="-1" aria-hidden="true">
+<input type="file" id="json" class="sr-only" accept=".json,application/json" tabindex="-1" aria-hidden="true">
+
+<div class="wrap">
+  <header class="bar">
+    <a class="mark" href="./" aria-label="TTT 처음 화면">TTT</a>
+    <div class="seg" role="radiogroup" aria-label="손잡이">
+      <input type="radio" name="hand" id="handR" value="R" checked><label for="handR">오른손잡이</label>
+      <input type="radio" name="hand" id="handL" value="L"><label for="handL">왼손잡이</label>
+    </div>
+  </header>
+
+  <main>
+    <section id="start" class="table" aria-labelledby="title">
+      <div class="half top">
+        <h1 id="title">폰으로 찍은 스윙,<br>3D로 돌려 보세요</h1>
+        <p class="lede" id="lede">스윙 영상 하나로 자세를 3D로 복원하고, 프로 기준과 비교해 다음 연습에서 고칠 점을 알려 드려요.</p>
+        <button type="button" class="ball-btn" id="pick"><svg class="icon"><use href="#i-upload"/></svg>스윙 영상 올리기</button>
+        <div id="progress" hidden aria-live="polite">
+          <div id="previewSlot"></div>
+          <p id="step">영상 확인 중</p>
+          <div class="rail" aria-hidden="true"><span class="fill"></span><span class="ball"></span></div>
+          <p id="stepSub"></p>
+        </div>
+        <p id="err" role="alert" hidden></p>
+        <p class="promise"><svg class="icon"><use href="#i-lock"/></svg>영상은 서버로 가지 않고 이 기기 안에서만 분석됩니다.</p>
+      </div>
+      <div class="net"></div>
+      <div class="half">
+        <h2>이렇게 찍어 주세요</h2>
+        <ul class="tips">
+          <li><svg class="icon"><use href="#i-phone"/></svg>폰을 세워 고정하고 몸 전체가 나오게</li>
+          <li><svg class="icon"><use href="#i-gauge"/></svg>60fps 이상, 슬로모션이면 더 정확해요</li>
+          <li><svg class="icon"><use href="#i-once"/></svg>영상 하나에 스윙 한 번, 15초 이내</li>
+        </ul>
+        <button type="button" class="text-btn" data-open-json><svg class="icon"><use href="#i-file"/></svg>명령줄에서 만든 분석 JSON 열기</button>
+      </div>
+    </section>
+
+    <section id="result" hidden aria-label="분석 결과">
+      <div class="table stage" id="stage">
+        <div class="views">
+          <div id="videoSlot" style="display:contents"></div>
+          <div id="view" aria-label="3D 스윙. 드래그로 돌리고 두 손가락이나 휠로 확대합니다." role="img"></div>
+          <p class="meta" id="meta"></p>
+          <p class="hint">드래그로 돌려 보세요</p>
+        </div>
+        <div class="net"></div>
+        <div class="controls">
+          <button type="button" class="icon-btn" id="play" aria-label="재생"><svg class="icon"><use href="#i-play"/></svg></button>
+          <input type="range" id="seek" min="0" value="0" aria-label="프레임 이동">
+          <select id="rate" aria-label="재생 속도"><option value="0.25">0.25배</option><option value="0.5">0.5배</option><option value="1" selected>1배</option></select>
+        </div>
+        <div class="phases" role="group" aria-label="구간으로 이동">
+          <button type="button" data-ph="백스윙" aria-pressed="false">백스윙</button>
+          <button type="button" data-ph="임팩트" aria-pressed="false">임팩트</button>
+          <button type="button" data-ph="피니시" aria-pressed="false">피니시</button>
+        </div>
+        <dl class="readout" aria-live="off">
+          <div><dt>손목 속도</dt><dd id="rSpeed">–</dd></div>
+          <div><dt>팔꿈치</dt><dd id="rElbow">–</dd></div>
+          <div><dt>무릎</dt><dd id="rKnee">–</dd></div>
+          <div><dt>몸통 꼬임</dt><dd id="rTwist">–</dd></div>
+        </dl>
+      </div>
+
+      <div class="below">
+        <section class="wide table callout">
+          <h2>다음 연습에서 고칠 것</h2>
+          <ol class="fb" id="fb"></ol>
+        </section>
+        <section>
+          <h2>자세 비교</h2>
+          <div class="speed" id="speed"></div>
+          <div class="plates" id="plates"></div>
+          <table>
+            <thead><tr><th scope="col">항목</th><th scope="col">백스윙</th><th scope="col">임팩트</th><th scope="col">피니시</th></tr></thead>
+            <tbody id="cmp"></tbody>
+          </table>
+          <p class="fine">프로 기준은 모션캡처·센서로 잰 논문 값이라 폰 영상 분석과 오차가 있어요. 기준이 없는 항목은 수치만 보여 드려요.</p>
+        </section>
+        <section>
+          <h2>힘 전달 순서</h2>
+          <p class="sub">백스윙 끝부터 임팩트까지, 각 부위가 가장 빨라진 순간을 실제 시간 비율로 그렸어요.</p>
+          <div class="chain" id="chain"></div>
+        </section>
+        <section class="wide">
+          <details><summary>프로 기준 출처</summary><ul id="src"></ul></details>
+          <div class="actions" style="margin-top:20px">
+            <button type="button" class="ball-btn" data-pick-video><svg class="icon"><use href="#i-upload"/></svg>다른 영상 분석</button>
+            <button type="button" class="ghost-btn" id="save"><svg class="icon"><use href="#i-save"/></svg>결과 JSON 저장</button>
+            <button type="button" class="text-btn" data-open-json style="margin-top:0"><svg class="icon"><use href="#i-file"/></svg>분석 JSON 열기</button>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
 </div>
-<div id="status" class="muted"></div>
-<main><video id="video" muted playsinline></video><div id="view"></div></main>
-<div id="ctl">
-  <button id="play">▶</button>
-  <select id="rate"><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option></select>
-  <input type="range" id="seek" min="0" value="0">
-  <span id="fl" class="muted">-</span>
-  <button data-ph="백스윙">백스윙</button><button data-ph="임팩트">임팩트</button><button data-ph="피니시">피니시</button>
-</div>
-<div id="report">스윙 영상을 올려 주세요.
-3D 화면은 드래그로 돌리고 휠로 확대합니다. 손목 궤적 색: 파랑(느림) → 빨강(빠름), 빨간 점 = 임팩트</div>
-<details>
-  <summary>촬영 팁</summary>
-  <p>폰을 세워 고정하고 몸 전체가 나오게 찍어 주세요. 60fps 이상(가능하면 슬로모션), 영상 하나에 스윙 한 번, 15초 이내가 좋습니다.
-  프로 기준은 논문 값이라(측정 장비가 다름) 참고용입니다. "결과 JSON 저장"으로 모은 프로 스윙 분석은 make_ranges.py 로 나만의 기준으로 만들 수 있습니다.</p>
-</details>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script type="module">
 import { FilesetResolver, PoseLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/vision_bundle.mjs";
-import { analyze, report, smooth, wristIndex } from "./analyze.js";
+import { CHAIN, PHASES, analyze, evaluate, report, roundHalfEven, smooth, wristIndex } from "./analyze.js";
 
 const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm";
 // ponytail: 브라우저 속도 때문에 full 모델, 정확도가 아쉬우면 heavy 로 교체
 const MODEL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task";
 const MAX_SEC = 15;
+const CONNECTIONS = PoseLandmarker.POSE_CONNECTIONS.map(c => [c.start, c.end]);
 const $ = id => document.getElementById(id);
-const view = $("view"), video = $("video"), status = $("status");
-const [ref, tips] = await Promise.all(["pro_ranges.json", "tips.json"].map(f => fetch(f).then(r => r.json())));
+const video = document.createElement("video");
+video.muted = true; video.playsInline = true; video.setAttribute("playsinline", "");
+const [ref, tips] = await Promise.all(["pro_ranges.json", "tips.json"].map(f => fetch(f).then(r => r.json()).catch(() => ({}))));
+
+// ---------- 작은 DOM 도우미 ----------
+const h = (tag, props = {}, ...kids) => {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) k === "class" ? (el.className = v) : el.setAttribute(k, v);
+  el.append(...kids.flat().filter(k => k !== null && k !== undefined && k !== false));
+  return el;
+};
+const icon = name => {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", `#i-${name}`);
+  svg.append(use);
+  return svg;
+};
+const hand = () => document.querySelector("input[name=hand]:checked").value;
 
 // ---------- 3D 뷰어 ----------
+const view = $("view");
 const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setClearColor(0x10325c);
 view.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
-camera.position.set(0, 0.2, 3);
+const camera = new THREE.PerspectiveCamera(42, 1, 0.01, 100);
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
-scene.add(new THREE.GridHelper(4, 20, 0x444444, 0x222222).translateY(-1));
+controls.enableDamping = true;
 const bones = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xffffff }));
-const joints = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color: 0x4fc3f7, size: 0.04 }));
-const marker = new THREE.Mesh(new THREE.SphereGeometry(0.03), new THREE.MeshBasicMaterial({ color: 0xff1744 }));
+const joints = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color: 0xffffff, size: 0.035 }));
+const marker = new THREE.Mesh(new THREE.SphereGeometry(0.035, 24, 16), new THREE.MeshBasicMaterial({ color: 0xf28c28 }));
+const head = new THREE.Mesh(new THREE.SphereGeometry(0.065, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffffff }));
 bones.frustumCulled = joints.frustumCulled = false;
-scene.add(bones, joints, marker);
+scene.add(bones, joints, marker, head);
+let floor = null, trail = null;
 
-let data = null, trail = null, frame = 0, playing = false, last = 0, busy = false;
+let data = null, evalr = null, current = null, frame = 0, playing = false, last = 0, busy = false;
 // MediaPipe 좌표는 y가 아래, z가 카메라 쪽이라 뒤집어서 그린다
 const P = (f, j) => { const [x, y, z] = data.frames[f][j]; return [x, -y, -z]; };
 
-function load(d) {
-  data = d;
-  $("seek").max = d.frames.length - 1;
-  if (trail) scene.remove(trail);
-  const max = Math.max(...d.speed) || 1, pos = [], col = [];
-  d.frames.forEach((_, f) => {
-    pos.push(...P(f, d.wrist_index));
-    const c = new THREE.Color().setHSL(0.66 * (1 - d.speed[f] / max), 1, 0.5);
-    col.push(c.r, c.g, c.b);
-  });
+// 경기장: 바닥 + 선수 앞에 놓인 규격 탁구대(2.74 x 1.525, 높이 0.76, 네트 0.1525).
+// WebGL 선은 굵기가 1px 고정이라 흰 선은 얇은 판으로 그린다.
+// ponytail: 선수가 보는 방향은 "골반선에 수직, 스윙이 나가는 쪽"으로 추정. 카메라 한 대라 틀릴 수 있음.
+function buildCourt(floorY, hip, facing) {
+  const g = new THREE.Group(), W = 1.525, Lz = 2.74, H = 0.76, edge = 0.03;
+  const white = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshBasicMaterial({ color: 0x0b2340 }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set(hip[0], floorY, hip[2]);
+  g.add(ground);
+
+  const table = new THREE.Group();
+  const top = new THREE.Mesh(new THREE.BoxGeometry(W, 0.03, Lz), new THREE.MeshBasicMaterial({ color: 0x17457a }));
+  top.position.y = -0.015;
+  table.add(top);
+  const strip = (w, l, x, z) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), white);
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(x, 0.001, z);
+    table.add(m);
+  };
+  strip(W, edge, 0, -Lz / 2 + edge / 2);
+  strip(W, edge, 0, Lz / 2 - edge / 2);
+  strip(edge, Lz, -W / 2 + edge / 2, 0);
+  strip(edge, Lz, W / 2 - edge / 2, 0);
+  strip(0.012, Lz, 0, 0); // 센터라인
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W + 0.3, 0.1525),
+    new THREE.MeshBasicMaterial({ color: 0x0b2340, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
+  mesh.position.y = 0.076;
+  const tape = new THREE.Mesh(new THREE.PlaneGeometry(W + 0.3, 0.028), white);
+  tape.position.set(0, 0.1525 - 0.014, 0.003);
+  table.add(mesh, tape);
+  // 테이블의 +z 가 선수가 보는 방향, 가까운 엔드라인이 골반 앞 0.45m
+  table.rotation.y = Math.atan2(facing[0], facing[1]);
+  const d = 0.45 + Lz / 2;
+  table.position.set(hip[0] + facing[0] * d, floorY + H, hip[2] + facing[1] * d);
+  g.add(table);
+  return g;
+}
+
+function estimateFacing() {
+  const m = data.metrics.phases, f = m["임팩트"];
+  const l = P(f, 23), r = P(f, 24);
+  let n = [-(r[2] - l[2]), r[0] - l[0]];
+  const a = P(m["백스윙"], data.wrist_index), b = P(m["피니시"], data.wrist_index);
+  if (n[0] * (b[0] - a[0]) + n[1] * (b[2] - a[2]) < 0) n = n.map(v => -v);
+  const len = Math.hypot(...n);
+  return len > 1e-6 ? n.map(v => v / len) : [0, 1];
+}
+
+function build3D() {
+  [floor, trail].forEach(o => o && scene.remove(o));
+  const n = data.frames.length, w = data.wrist_index;
+  let lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (let f = 0; f < n; f++) for (let j = 11; j < 33; j++) {
+    const p = P(f, j);
+    lo = lo.map((v, i) => Math.min(v, p[i])); hi = hi.map((v, i) => Math.max(v, p[i]));
+  }
+  const c = lo.map((v, i) => (v + hi[i]) / 2);
+  const imp = data.metrics.phases["임팩트"], hl = P(imp, 23), hr = P(imp, 24), facing = estimateFacing();
+  floor = buildCourt(lo[1] - 0.02, hl.map((v, i) => (v + hr[i]) / 2), facing);
+  const max = Math.max(...data.speed) || 1, slow = new THREE.Color(0x9cc2ee), fast = new THREE.Color(0xf28c28);
+  const pos = [], col = [];
+  for (let f = 0; f < n; f++) {
+    pos.push(...P(f, w));
+    const k = slow.clone().lerp(fast, data.speed[f] / max);
+    col.push(k.r, k.g, k.b);
+  }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
   trail = new THREE.Line(g, new THREE.LineBasicMaterial({ vertexColors: true }));
-  scene.add(trail);
-  marker.position.set(...P(d.metrics.phases["임팩트"], d.wrist_index));
-  $("report").textContent = d.report;
-  $("save").disabled = false;
-  go(d.metrics.phases["임팩트"]);
+  scene.add(floor, trail);
+  marker.position.set(...P(data.metrics.phases["임팩트"], w));
+  const size = Math.max(hi[1] - lo[1], hi[0] - lo[0], 1.2);
+  // 선수 뒤 비스듬한 위치에서, 선수와 테이블 사이를 바라본다
+  const side = [facing[1], -facing[0]], t = [c[0] + facing[0] * 0.6, c[1] - size * 0.1, c[2] + facing[1] * 0.6];
+  controls.target.set(...t);
+  camera.position.set(t[0] - facing[0] * size * 2.3 + side[0] * size * 0.8, t[1] + size * 0.55,
+    t[2] - facing[1] * size * 2.3 + side[1] * size * 0.8);
+  controls.update();
 }
 
+const fmt = (v, d = 0) => (v === undefined || Number.isNaN(v) ? "–" : v.toFixed(d));
 function show(f) {
   frame = Math.max(0, Math.min(f, data.frames.length - 1));
+  // 얼굴 점(0~10)은 선으로 이으면 낙서처럼 보여서 머리는 구 하나로
   bones.geometry.setAttribute("position", new THREE.Float32BufferAttribute(
-    data.connections.flatMap(([a, b]) => [...P(frame, a), ...P(frame, b)]), 3));
+    data.connections.filter(([a, b]) => a >= 11 && b >= 11).flatMap(([a, b]) => [...P(frame, a), ...P(frame, b)]), 3));
+  const ears = [P(frame, 7), P(frame, 8)];
+  head.position.set(...ears[0].map((v, i) => (v + ears[1][i]) / 2));
   joints.geometry.setAttribute("position", new THREE.Float32BufferAttribute(
-    data.frames[frame].flatMap((_, j) => P(frame, j)), 3));
+    data.frames[frame].slice(11).flatMap((_, j) => P(frame, j + 11)), 3));
   $("seek").value = frame;
-  $("fl").textContent = `${frame} / ${data.frames.length - 1} · 손목 ${data.speed[frame].toFixed(1)} m/s`;
+  const s = data.series ?? {};
+  $("rSpeed").replaceChildren(fmt(data.speed[frame], 1), h("small", {}, "m/s"));
+  $("rElbow").replaceChildren(fmt(s["팔꿈치"]?.[frame]), h("small", {}, "°"));
+  $("rKnee").replaceChildren(fmt(s["무릎"]?.[frame]), h("small", {}, "°"));
+  $("rTwist").replaceChildren(fmt(s["몸통 꼬임"]?.[frame]), h("small", {}, "°"));
+  document.querySelectorAll("[data-ph]").forEach(b => b.setAttribute("aria-pressed", String(data.metrics.phases[b.dataset.ph] === frame)));
 }
 
 function go(f) {
   if (!data) return;
-  if (video.src) video.currentTime = (f + 0.5) / data.fps;
+  if (video.src && !$("stage").classList.contains("no-video")) video.currentTime = (f + 0.5) / data.fps;
   show(f);
+}
+
+// ---------- 결과 화면 ----------
+const ms = f => roundHalfEven(((f - data.metrics.phases["임팩트"]) / data.fps) * 1000);
+
+function renderFeedback() {
+  const items = evalr.rows.filter(r => r.tip).map(r => h("li", {},
+    h("h3", {}, icon("alert"), `${r.phase} · ${r.metric}`),
+    h("p", {}, r.tip),
+    h("p", { class: "detail" }, `내 스윙 ${r.value}° · 프로 ${r.ref.min}~${r.ref.max}°`)));
+  if (evalr.chainTip) items.push(h("li", {},
+    h("h3", {}, icon("alert"), "힘 전달 순서"),
+    h("p", {}, evalr.chainTip),
+    h("p", { class: "detail" }, "가장 빨라진 순서: " + [...CHAIN].sort((a, b) => data.metrics.chain_peaks[a] - data.metrics.chain_peaks[b]).join(" → "))));
+  if (!items.length) items.push(h("li", {}, h("p", { class: "none" },
+    "프로 기준을 벗어난 항목이 없어요. 팔꿈치와 몸통 꼬임은 아직 공개된 기준이 없어서 아래에 수치만 보여 드려요.")));
+  $("fb").replaceChildren(...items);
+}
+
+function renderCompare() {
+  const m = data.metrics, sp = evalr.speed;
+  $("speed").replaceChildren(
+    h("strong", {}, `${m.impact_speed.toFixed(1)} m/s`),
+    h("span", {}, "임팩트 손목 속도" + (sp ? ` · 프로 참고 약 ${sp.value} m/s` : "")));
+
+  // 세 순간을 같은 축척·같은 바닥선으로 (카메라가 본 정면 투영)
+  const frames = PHASES.map(ph => data.frames[m.phases[ph]]);
+  const xs = frames.flatMap(fr => fr.slice(11).map(p => p[0])), ys = frames.flatMap(fr => fr.slice(11).map(p => p[1]));
+  const pad = 0.12, x0 = Math.min(...xs) - pad, y0 = Math.min(...ys) - pad;
+  const w = Math.max(...xs) + pad - x0, hgt = Math.max(...ys) + pad - y0;
+  const NS = "http://www.w3.org/2000/svg";
+  $("plates").replaceChildren(...PHASES.map((ph, i) => {
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", `${x0} ${y0} ${w} ${hgt}`);
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", `${ph} 자세`);
+    const fr = frames[i], sw = w / 90;
+    const ground = document.createElementNS(NS, "line");
+    Object.entries({ x1: x0, x2: x0 + w, y1: y0 + hgt - pad / 2, y2: y0 + hgt - pad / 2, stroke: "#FFFFFF", "stroke-opacity": ".35", "stroke-width": sw }).forEach(([k, v]) => ground.setAttribute(k, v));
+    svg.append(ground);
+    for (const [a, b] of data.connections) {
+      if (a < 11 || b < 11) continue;
+      const l = document.createElementNS(NS, "line");
+      Object.entries({ x1: fr[a][0], y1: fr[a][1], x2: fr[b][0], y2: fr[b][1], stroke: "#FFFFFF", "stroke-width": sw * 2, "stroke-linecap": "round" }).forEach(([k, v]) => l.setAttribute(k, v));
+      svg.append(l);
+    }
+    const head = document.createElementNS(NS, "circle");
+    Object.entries({ cx: fr[0][0], cy: fr[0][1], r: sw * 5, fill: "#FFFFFF" }).forEach(([k, v]) => head.setAttribute(k, v));
+    const ball = document.createElementNS(NS, "circle");
+    Object.entries({ cx: fr[data.wrist_index][0], cy: fr[data.wrist_index][1], r: sw * 4, fill: "#F28C28" }).forEach(([k, v]) => ball.setAttribute(k, v));
+    svg.append(head, ball);
+    return h("figure", {}, svg, h("figcaption", {}, ph));
+  }));
+
+  const metrics = [...new Set(evalr.rows.map(r => r.metric))];
+  $("cmp").replaceChildren(...metrics.map(metric => h("tr", {}, h("th", { scope: "row" }, metric),
+    ...PHASES.map(ph => {
+      const r = evalr.rows.find(x => x.phase === ph && x.metric === metric);
+      const st = r.ref?.status;
+      const cls = st === "ok" ? "ok" : st === "low" || st === "high" ? "warn" : "";
+      return h("td", { class: cls }, h("b", {}, `${r.value}°`),
+        r.ref ? h("span", { class: "r" }, icon(cls === "ok" ? "check" : "alert"), `프로 ${r.ref.min}~${r.ref.max}`) : null);
+    }))));
+  $("src").replaceChildren(...evalr.sources.map(s => h("li", {}, s)));
+}
+
+function renderChain() {
+  const m = data.metrics, start = m.phases["백스윙"], end = m.phases["임팩트"], span = Math.max(1, end - start);
+  const total = roundHalfEven(((end - start) / data.fps) * 1000);
+  const lanes = CHAIN.map(k => {
+    const at = ((m.chain_peaks[k] - start) / span) * 100, t = ms(m.chain_peaks[k]);
+    return h("div", { class: "lane" }, h("span", {}, k),
+      h("div", { class: "track" }, h("i", { class: "dot" + (at > 70 ? " flip" : ""), style: `left:${at}%` },
+        h("em", {}, t === 0 ? "임팩트" : `${t}ms`))));
+  });
+  $("chain").replaceChildren(
+    h("div", { class: "axis" }, h("span", {}, `백스윙 끝 (-${total}ms)`), h("span", {}, "임팩트")),
+    ...lanes,
+    m.chain_ok
+      ? h("p", { class: "verdict ok" }, icon("check"), "골반 → 어깨 → 팔꿈치 → 손목, 순서대로 이어졌어요.")
+      : h("p", { class: "verdict warn" }, icon("alert"), "순서가 어긋났어요. 팔로만 치는 스윙일 수 있어요."));
+}
+
+function showResult() {
+  $("start").hidden = true;
+  $("result").hidden = false;
+  $("videoSlot").append(video);
+  window.scrollTo({ top: 0 });
+}
+
+function load(d) {
+  data = d;
+  evalr = evaluate(d.metrics, ref, tips);
+  $("seek").max = d.frames.length - 1;
+  $("stage").classList.toggle("no-video", !d.hasVideo);
+  $("meta").textContent = d.note ?? "";
+  showResult();
+  build3D();
+  renderFeedback();
+  renderCompare();
+  renderChain();
+  go(d.metrics.phases["임팩트"]);
+}
+
+// current: { pts, fps, note, hasVideo } — 손잡이를 바꾸면 다시 계산
+function finish() {
+  const { pts, fps, note, hasVideo } = current, hd = hand();
+  const m = analyze(pts, fps, hd);
+  const { speed, series } = m;
+  delete m.speed; delete m.series;
+  load({
+    fps, connections: CONNECTIONS, wrist_index: wristIndex(hd),
+    frames: pts, speed, series, metrics: m, report: report(m, fps, ref, tips), note, hasVideo,
+  });
 }
 
 // ---------- 영상 → 3D 자세 ----------
@@ -155,86 +632,121 @@ async function estimateFps(v) {
 
 const seek = (v, t) => new Promise(r => { v.addEventListener("seeked", r, { once: true }); v.currentTime = t; });
 
-async function extract(v, fps) {
-  const lm = await getLandmarker();
-  const n = Math.floor(Math.min(v.duration, MAX_SEC) * fps);
-  const pts = [];
-  for (let i = 0; i < n; i++) {
-    await seek(v, (i + 0.5) / fps);
-    const r = lm.detectForVideo(v, (i * 1000) / fps);
-    pts.push(r.worldLandmarks[0]?.map(p => [p.x, p.y, p.z]) ?? null);
-    if (i % 5 === 0) status.innerHTML = `3D 자세 복원 중 <progress value="${i}" max="${n}"></progress> ${i}/${n} 프레임`;
-  }
-  return pts;
+function setStep(title, sub = "", p = null) {
+  $("pick").hidden = true;
+  $("lede").hidden = true;
+  $("err").hidden = true;
+  $("progress").hidden = false;
+  $("step").textContent = title;
+  $("stepSub").textContent = sub;
+  $("progress").classList.toggle("waiting", p === null);
+  $("progress").style.setProperty("--p", p ?? 0);
 }
 
-let current = null; // 마지막 영상의 { pts, fps, note } — 손잡이를 바꾸면 다시 계산
-function finish() {
-  const { pts, fps, note } = current, hand = $("hand").value;
-  const m = analyze(pts, fps, hand);
-  const speed = m.speed;
-  delete m.speed;
-  load({
-    fps, connections: PoseLandmarker.POSE_CONNECTIONS.map(c => [c.start, c.end]), wrist_index: wristIndex(hand),
-    frames: pts.map(f => f.map(p => p.map(x => Math.round(x * 1000) / 1000))),
-    speed: speed.map(s => Math.round(s * 100) / 100), metrics: m, report: report(m, fps, ref, tips),
-  });
-  status.textContent = note;
+function showError(msg) {
+  $("progress").hidden = true;
+  $("pick").hidden = false;
+  $("lede").hidden = false;
+  $("err").hidden = false;
+  $("err").replaceChildren(icon("alert"), h("span", {}, msg));
 }
 
-$("vid").onchange = async e => {
-  const file = e.target.files[0];
+async function analyzeVideo(file) {
   if (!file || busy) return;
   busy = true;
+  playing = false;
+  $("result").hidden = true;
+  $("start").hidden = false;
+  $("previewSlot").append(video);
   try {
-    status.textContent = "영상 준비 중...";
+    setStep("영상 확인 중", file.name);
     video.src = URL.createObjectURL(file);
-    await new Promise((ok, fail) => { video.onloadeddata = ok; video.onerror = () => fail(new Error("이 브라우저에서 열 수 없는 영상 형식입니다.")); });
+    await new Promise((ok, fail) => {
+      video.onloadeddata = ok;
+      video.onerror = () => fail(new Error("이 브라우저에서 열 수 없는 영상 형식이에요. mp4나 mov로 다시 올려 주세요."));
+    });
     const fps = await estimateFps(video);
-    status.textContent = "포즈 모델 불러오는 중... (처음 한 번, 약 10MB)";
-    const pts = smooth(await extract(video, fps), fps);
-    current = { pts, fps, note: `분석 완료 · ${fps}fps · ${pts.length}프레임` + (video.duration > MAX_SEC ? ` (앞 ${MAX_SEC}초만 분석)` : "") };
+    setStep("포즈 모델 불러오는 중", "처음 한 번만 받아요 · 약 10MB");
+    const lm = await getLandmarker();
+    const n = Math.floor(Math.min(video.duration, MAX_SEC) * fps);
+    const raw = [];
+    for (let i = 0; i < n; i++) {
+      await seek(video, (i + 0.5) / fps);
+      const r = lm.detectForVideo(video, (i * 1000) / fps);
+      raw.push(r.worldLandmarks[0]?.map(p => [p.x, p.y, p.z]) ?? null);
+      if (i % 4 === 0) setStep("3D 자세 복원 중", `${i} / ${n} 프레임 · ${fps}fps`, i / n);
+    }
+    setStep("스윙 계산 중", "", 1);
+    const pts = smooth(raw, fps);
+    current = { pts, fps, hasVideo: true,
+      note: `${fps}fps · ${pts.length}프레임` + (video.duration > MAX_SEC ? ` · 앞 ${MAX_SEC}초만` : "") };
     finish();
   } catch (err) {
-    status.textContent = `⚠ ${err.message}`;
+    showError(err.message);
   } finally {
     busy = false;
-    e.target.value = "";
+    $("vid").value = "";
   }
-};
-$("hand").onchange = () => current && finish();
-$("json").onchange = async e => { current = null; video.removeAttribute("src"); video.load(); load(JSON.parse(await e.target.files[0].text())); };
+}
+
+async function openJson(file) {
+  if (!file || busy) return;
+  try {
+    const d = JSON.parse(await file.text());
+    if (!Array.isArray(d.frames) || !d.fps) throw new Error();
+    document.querySelector(`input[name=hand][value=${d.wrist_index === wristIndex("L") ? "L" : "R"}]`).checked = true;
+    video.removeAttribute("src"); video.load();
+    current = { pts: d.frames, fps: d.fps, hasVideo: false, note: `${file.name} · ${d.frames.length}프레임` };
+    finish();
+  } catch {
+    $("start").hidden = false; $("result").hidden = true;
+    showError("TTT 분석 JSON이 아니에요. swing.py나 이 페이지에서 저장한 파일을 열어 주세요.");
+  } finally {
+    $("json").value = "";
+  }
+}
+
+// ---------- 이벤트 ----------
+$("pick").onclick = () => $("vid").click();
+document.querySelectorAll("[data-pick-video]").forEach(b => b.onclick = () => $("vid").click());
+document.querySelectorAll("[data-open-json]").forEach(b => b.onclick = () => $("json").click());
+$("vid").onchange = e => analyzeVideo(e.target.files[0]);
+$("json").onchange = e => openJson(e.target.files[0]);
+document.querySelectorAll("input[name=hand]").forEach(r => r.onchange = () => current && !busy && finish());
 $("save").onclick = () => {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" }));
-  a.download = "swing.json";
+  const { hasVideo, series, note, ...out } = data;
+  out.frames = out.frames.map(f => f.map(p => p.map(x => Math.round(x * 1000) / 1000)));
+  out.speed = out.speed.map(s => Math.round(s * 100) / 100);
+  const a = h("a", { href: URL.createObjectURL(new Blob([JSON.stringify(out)], { type: "application/json" })), download: "ttt-swing.json" });
   a.click();
 };
-
-// ---------- 재생 ----------
 $("rate").onchange = () => { video.playbackRate = +$("rate").value; };
 $("seek").oninput = e => go(+e.target.value);
 document.querySelectorAll("[data-ph]").forEach(b => b.onclick = () => data && go(data.metrics.phases[b.dataset.ph]));
+const setPlayIcon = on => {
+  $("play").replaceChildren(icon(on ? "pause" : "play"));
+  $("play").setAttribute("aria-label", on ? "일시정지" : "재생");
+};
 $("play").onclick = () => {
   if (!data || busy) return;
-  if (video.src) return video.paused ? video.play() : video.pause();
+  if (data.hasVideo) return video.paused ? video.play() : video.pause();
   playing = !playing;
-  $("play").textContent = playing ? "⏸" : "▶";
+  setPlayIcon(playing);
 };
-video.onplay = () => $("play").textContent = "⏸";
-video.onpause = () => $("play").textContent = "▶";
+video.onplay = () => !busy && setPlayIcon(true);
+video.onpause = () => !busy && setPlayIcon(false);
 
 (function loop(t) {
   requestAnimationFrame(loop);
-  if (data && !busy) {
-    if (video.src && !video.paused) show(Math.min(Math.floor(video.currentTime * data.fps), data.frames.length - 1));
+  if (data && !busy && !$("result").hidden) {
+    if (data.hasVideo && !video.paused) show(Math.min(Math.floor(video.currentTime * data.fps), data.frames.length - 1));
     else if (playing && t - last > 1000 / data.fps / $("rate").value) { last = t; show((frame + 1) % data.frames.length); }
   }
-  const w = view.clientWidth, h = view.clientHeight;
-  if (renderer.domElement.width !== Math.floor(w * devicePixelRatio)) {
+  const w = view.clientWidth, hh = view.clientHeight;
+  if (w && renderer.domElement.width !== Math.floor(w * devicePixelRatio)) {
     renderer.setPixelRatio(devicePixelRatio);
-    renderer.setSize(w, h);
-    camera.aspect = w / h;
+    renderer.setSize(w, hh);
+    camera.aspect = w / hh;
     camera.updateProjectionMatrix();
   }
   controls.update();

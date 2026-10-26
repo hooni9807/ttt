@@ -13,6 +13,11 @@ const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const norm = a => Math.hypot(a[0], a[1], a[2]);
 const argmax = a => a.reduce((best, v, i) => (v > a[best] ? i : best), 0);
 const deg = r => (r * 180) / Math.PI;
+// Python 의 f"{x:.0f}" 와 같은 반올림 (0.5 는 짝수 쪽으로)
+export const roundHalfEven = x => {
+  const r = Math.round(x);
+  return Math.abs(x % 1) === 0.5 && r % 2 ? r - 1 : r;
+};
 const gradient = a => a.map((v, i) => (i === 0 ? a[1] - a[0] : i === a.length - 1 ? v - a[i - 1] : (a[i + 1] - a[i - 1]) / 2));
 const unwrap = a => {
   let off = 0;
@@ -86,34 +91,48 @@ export function analyze(pts, fps, hand = "R") {
     chain_peaks: peaks,
     chain_ok: CHAIN.every((k, i) => !i || peaks[CHAIN[i - 1]] <= peaks[k]),
     speed,
+    series: { 팔꿈치: elbow, 무릎: knee, "몸통 꼬임": twist }, // 웹 화면의 프레임별 수치용 (swing.py 에는 없음)
   };
 }
 
-// ref: pro_ranges.json 형식, tips: tips.json
-export function report(m, fps, ref = {}, tips = {}) {
-  const used = [], feedback = [];
-  const check = (v, r, label, key) => {
-    if (!r) return "";
-    used.push(r.source);
-    if (r.min === undefined) return ` (프로 참고 ${r.value})`;
-    const dir = v < r.min ? "low" : v > r.max ? "high" : null;
-    if (dir && tips[key]) feedback.push(`[${label}] ${key}: ${tips[key][dir]}`);
-    return ` (프로 ${r.min}~${r.max} ${dir ? "⚠" : "✓"})`;
+// 프로 기준과 비교한 판정. ref: pro_ranges.json 형식, tips: tips.json
+// status: ok / low / high (범위 비교), ref (참고값만 있음)
+export function evaluate(m, ref = {}, tips = {}) {
+  const sources = new Set();
+  const judge = (v, r) => {
+    if (!r) return null;
+    sources.add(r.source);
+    if (r.min === undefined) return { ...r, status: "ref" };
+    return { ...r, status: v < r.min ? "low" : v > r.max ? "high" : "ok" };
   };
-  const lines = [`임팩트 손목 속도: ${m.impact_speed.toFixed(1)} m/s (프레임 ${m.phases.임팩트})`
-    + check(m.impact_speed, ref.impact_speed)];
-  for (const [ph, a] of Object.entries(m.angles)) {
-    const r = ref.angles?.[ph] ?? {};
-    lines.push(`[${ph}] ` + Object.entries(a).map(([k, v]) => `${k} ${v}°` + check(v, r[k], ph, k)).join(", "));
+  const speed = judge(m.impact_speed, ref.impact_speed);
+  const rows = [];
+  for (const [phase, a] of Object.entries(m.angles)) {
+    for (const [metric, value] of Object.entries(a)) {
+      const r = judge(value, ref.angles?.[phase]?.[metric]);
+      const tip = r && (r.status === "low" || r.status === "high") ? tips[metric]?.[r.status] : undefined;
+      rows.push({ phase, metric, value, ref: r, tip });
+    }
   }
+  return { speed, rows, chainTip: m.chain_ok ? undefined : tips["힘 전달"], sources: [...sources] };
+}
+
+export function report(m, fps, ref = {}, tips = {}) {
+  const e = evaluate(m, ref, tips);
+  const mark = r => (!r ? "" : r.status === "ref" ? ` (프로 참고 ${r.value})` : ` (프로 ${r.min}~${r.max} ${r.status === "ok" ? "✓" : "⚠"})`);
+  const lines = [`임팩트 손목 속도: ${m.impact_speed.toFixed(1)} m/s (프레임 ${m.phases.임팩트})` + mark(e.speed)];
+  for (const ph of Object.keys(m.angles)) {
+    lines.push(`[${ph}] ` + e.rows.filter(r => r.phase === ph).map(r => `${r.metric} ${r.value}°` + mark(r.ref)).join(", "));
+  }
+  const feedback = e.rows.filter(r => r.tip).map(r => `[${r.phase}] ${r.metric}: ${r.tip}`);
+  if (e.chainTip) feedback.push(`[힘 전달] ${e.chainTip}`);
   const order = [...CHAIN].sort((x, y) => m.chain_peaks[x] - m.chain_peaks[y]).join(" → ");
   lines.push(`힘 전달 순서: ${order} ` + (m.chain_ok ? "✓ 정상" : "⚠ 순서가 어긋남 (팔로만 치는 스윙 의심)"));
   lines.push("  최고속도 시점(임팩트 기준): " + CHAIN.map(k => {
-    const ms = ((m.chain_peaks[k] - m.phases.임팩트) / fps) * 1000;
-    return `${k} ${ms >= 0 ? "+" : ""}${ms.toFixed(0)}ms`;
+    const ms = roundHalfEven(((m.chain_peaks[k] - m.phases.임팩트) / fps) * 1000);
+    return `${k} ${ms >= 0 ? "+" : ""}${ms}ms`;
   }).join(", "));
-  if (!m.chain_ok && tips["힘 전달"]) feedback.push(`[힘 전달] ${tips["힘 전달"]}`);
   if (feedback.length) lines.push("", "피드백:", ...feedback.map(f => `  - ${f}`));
-  if (used.length) lines.push("", "프로 기준 출처:", ...[...new Set(used)].map(s => `  - ${s}`));
+  if (e.sources.length) lines.push("", "프로 기준 출처:", ...e.sources.map(s => `  - ${s}`));
   return lines.join("\n");
 }

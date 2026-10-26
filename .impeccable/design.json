@@ -1,0 +1,374 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-26T01:22:18.249546+00:00",
+  "title": "Design System: TTT",
+  "extensions": {
+    "colorMeta": {
+      "floor": {
+        "role": "neutral",
+        "displayName": "Hall Floor Navy",
+        "canonical": "#0B2340",
+        "tonalRamp": [
+          "#172536",
+          "#214066",
+          "#265B9B",
+          "#2675D6",
+          "#5D95D9",
+          "#93B4DD",
+          "#C3D3E7",
+          "#EEF2F6"
+        ]
+      },
+      "table": {
+        "role": "neutral",
+        "displayName": "Table Blue",
+        "canonical": "#17457A",
+        "tonalRamp": [
+          "#172535",
+          "#224164",
+          "#285D99",
+          "#2978D3",
+          "#5F97D6",
+          "#94B5DC",
+          "#C4D4E6",
+          "#EEF2F6"
+        ]
+      },
+      "table-deep": {
+        "role": "neutral",
+        "displayName": "Deep Table Blue",
+        "canonical": "#123A66",
+        "tonalRamp": [
+          "#172636",
+          "#224265",
+          "#275E9A",
+          "#267AD5",
+          "#5E98D8",
+          "#93B6DC",
+          "#C4D4E7",
+          "#EEF2F6"
+        ]
+      },
+      "viewer-table": {
+        "role": "neutral",
+        "displayName": "Viewer Table Blue",
+        "canonical": "#10325C",
+        "tonalRamp": [
+          "#172536",
+          "#214065",
+          "#275A9B",
+          "#2674D5",
+          "#5D94D8",
+          "#93B4DD",
+          "#C4D3E7",
+          "#EEF2F6"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Court Line White",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7E7E7E",
+          "#9B9B9B",
+          "#B8B8B8",
+          "#D5D5D5",
+          "#F2F2F2"
+        ]
+      },
+      "ball": {
+        "role": "primary",
+        "displayName": "Ball Orange",
+        "canonical": "#F28C28",
+        "tonalRamp": [
+          "#3A2613",
+          "#6E4319",
+          "#AA6017",
+          "#EC7D0F",
+          "#E89A4D",
+          "#E6B88A",
+          "#EBD5BF",
+          "#F7F2ED"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7E7E7E",
+          "#9B9B9B",
+          "#B8B8B8",
+          "#D5D5D5",
+          "#F2F2F2"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Ink 2",
+        "canonical": "#C9D8EC",
+        "tonalRamp": [
+          "#1C2531",
+          "#2C405B",
+          "#395B88",
+          "#4275B9",
+          "#7195C5",
+          "#9FB4D1",
+          "#C9D3E1",
+          "#EFF2F5"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Ink 3",
+        "canonical": "#9DB4D3",
+        "tonalRamp": [
+          "#1E252F",
+          "#314156",
+          "#415C80",
+          "#4E77AD",
+          "#7A96BC",
+          "#A4B5CC",
+          "#CCD4DF",
+          "#F0F2F4"
+        ]
+      },
+      "ok": {
+        "role": "status",
+        "displayName": "Range Mint",
+        "canonical": "#7FD8A6",
+        "tonalRamp": [
+          "#1A3225",
+          "#2A5D40",
+          "#358C5B",
+          "#3BC075",
+          "#6CC995",
+          "#9CD4B5",
+          "#C8E2D3",
+          "#EFF5F2"
+        ]
+      },
+      "warn": {
+        "role": "status",
+        "displayName": "Range Coral",
+        "canonical": "#FF9A8A",
+        "tonalRamp": [
+          "#3C1610",
+          "#742013",
+          "#B3250E",
+          "#FA2301",
+          "#F25B44",
+          "#EC9284",
+          "#EEC3BC",
+          "#F8EEEC"
+        ]
+      },
+      "trail-slow": {
+        "role": "neutral",
+        "displayName": "Slow Trail Blue",
+        "canonical": "#9CC2EE",
+        "tonalRamp": [
+          "#172536",
+          "#214166",
+          "#265C9B",
+          "#2677D6",
+          "#5D96D9",
+          "#93B5DD",
+          "#C3D4E7",
+          "#EEF2F6"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "TTT mark only."
+      },
+      "display": {
+        "displayName": "Display",
+        "purpose": "Start-screen headline."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Current analysis step; fix-next callout heading."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Section headings; primary button label."
+      },
+      "feedback": {
+        "displayName": "Feedback",
+        "purpose": "The one correction sentence, above the numbers."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Ledes and tips, tabular figures."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Segment labels, table headers, phase buttons."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Hints, axis ticks, footnotes in Ink 3."
+      }
+    },
+    "shadows": [
+      {
+        "name": "ball-lift",
+        "value": "0 6px 18px rgba(3,12,26,.35)",
+        "purpose": "Primary ball button at rest."
+      },
+      {
+        "name": "ball-lift-hover",
+        "value": "0 10px 24px rgba(3,12,26,.4)",
+        "purpose": "Primary ball button on hover."
+      },
+      {
+        "name": "ball-contact",
+        "value": "0 3px 8px rgba(3,12,26,.45)",
+        "purpose": "Progress ball and scrubber thumb."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease",
+        "value": "cubic-bezier(.16,1,.3,1)",
+        "purpose": "Button lift, ball roll, result rise."
+      },
+      {
+        "name": "ball-roll",
+        "value": "1.4s ease infinite alternate",
+        "purpose": "Indeterminate progress: ball rolls along the rail."
+      },
+      {
+        "name": "rise",
+        "value": "0.5s, from opacity 0 / translateY(12px)",
+        "purpose": "Result screen entrance, once."
+      },
+      {
+        "name": "rail-fill",
+        "value": "0.25s linear",
+        "purpose": "Determinate progress fill and ball position."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide",
+        "value": "900px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Ball Button",
+      "kind": "button",
+      "refersTo": "button-ball",
+      "description": "Primary action: the only orange pill on a screen.",
+      "html": "<button class=\"ds-ball-btn\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 16V4M6 10l6-6 6 6M4 20h16\"/></svg>스윙 영상 올리기</button>",
+      "css": ":host{--floor:#0B2340;--table:#17457A;--table-deep:#123A66;--line:#FFFFFF;--ball:#F28C28;--ink:#FFFFFF;--ink-2:#C9D8EC;--ink-3:#9DB4D3;--ok:#7FD8A6;--warn:#FF9A8A;--ease:cubic-bezier(.16,1,.3,1);}.ds-ball-btn{font-family:\"Pretendard Variable\",Pretendard,system-ui,sans-serif;display:inline-flex;align-items:center;gap:10px;min-height:56px;padding:0 28px;border:0;border-radius:999px;background:var(--ball);color:var(--floor);font-size:18px;font-weight:800;cursor:pointer;box-shadow:0 6px 18px rgba(3,12,26,.35);transition:transform .2s var(--ease),box-shadow .2s var(--ease);}.ds-ball-btn:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(3,12,26,.4);}.ds-ball-btn:active{transform:translateY(1px);}.ds-ball-btn:focus-visible{outline:3px solid var(--ball);outline-offset:3px;}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary actions such as saving or opening results.",
+      "html": "<button class=\"ds-ghost-btn\">결과 저장</button>",
+      "css": ":host{--floor:#0B2340;--table:#17457A;--table-deep:#123A66;--line:#FFFFFF;--ball:#F28C28;--ink:#FFFFFF;--ink-2:#C9D8EC;--ink-3:#9DB4D3;--ok:#7FD8A6;--warn:#FF9A8A;--ease:cubic-bezier(.16,1,.3,1);}.ds-ghost-btn{font-family:\"Pretendard Variable\",Pretendard,system-ui,sans-serif;display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:2px solid var(--line);background:var(--table);color:var(--ink);font-weight:700;cursor:pointer;}.ds-ghost-btn:hover{background:#2E5787;}.ds-ghost-btn:focus-visible{outline:3px solid var(--ball);outline-offset:3px;}"
+    },
+    {
+      "name": "Handedness Segment",
+      "kind": "nav",
+      "refersTo": "",
+      "description": "Top-bar two-way toggle; checked side fills white.",
+      "html": "<div class=\"ds-seg\"><button class=\"on\">오른손</button><button>왼손</button></div>",
+      "css": ":host{--floor:#0B2340;--table:#17457A;--table-deep:#123A66;--line:#FFFFFF;--ball:#F28C28;--ink:#FFFFFF;--ink-2:#C9D8EC;--ink-3:#9DB4D3;--ok:#7FD8A6;--warn:#FF9A8A;--ease:cubic-bezier(.16,1,.3,1);}.ds-seg{display:inline-flex;border:2px solid var(--line);border-radius:999px;padding:2px;background:var(--floor);}.ds-seg button{font-family:\"Pretendard Variable\",Pretendard,system-ui,sans-serif;min-height:44px;padding:6px 14px;border:0;border-radius:999px;background:transparent;color:var(--ink-2);font-size:14px;font-weight:600;cursor:pointer;}.ds-seg button.on{background:var(--line);color:var(--floor);}.ds-seg button:focus-visible{outline:3px solid var(--ball);outline-offset:2px;}"
+    },
+    {
+      "name": "Phase Chips",
+      "kind": "chip",
+      "refersTo": "phase-chip",
+      "description": "Backswing / impact / finish jump buttons on the net line.",
+      "html": "<div class=\"ds-phases\"><button>백스윙</button><button aria-pressed=\"true\">임팩트</button><button>피니시</button></div>",
+      "css": ":host{--floor:#0B2340;--table:#17457A;--table-deep:#123A66;--line:#FFFFFF;--ball:#F28C28;--ink:#FFFFFF;--ink-2:#C9D8EC;--ink-3:#9DB4D3;--ok:#7FD8A6;--warn:#FF9A8A;--ease:cubic-bezier(.16,1,.3,1);}.ds-phases{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px;background:var(--table);}.ds-phases button{font-family:\"Pretendard Variable\",Pretendard,system-ui,sans-serif;min-height:44px;border-radius:999px;border:2px solid var(--line);background:transparent;color:var(--ink);font-weight:700;cursor:pointer;}.ds-phases button:hover{background:rgba(255,255,255,.1);}.ds-phases button[aria-pressed=true]{background:var(--line);color:var(--floor);}.ds-phases button:focus-visible{outline:3px solid var(--ball);outline-offset:3px;}"
+    },
+    {
+      "name": "Table Panel",
+      "kind": "card",
+      "refersTo": "table-panel",
+      "description": "The court: blue top, 5px white boundary, 3px net, centre-line stubs.",
+      "html": "<section class=\"ds-table\"><div class=\"ds-half\"><h2>다음 연습에서 고칠 것</h2></div><div class=\"ds-net\"></div><div class=\"ds-half\"><p>이렇게 찍어 주세요</p></div></section>",
+      "css": ":host{--floor:#0B2340;--table:#17457A;--table-deep:#123A66;--line:#FFFFFF;--ball:#F28C28;--ink:#FFFFFF;--ink-2:#C9D8EC;--ink-3:#9DB4D3;--ok:#7FD8A6;--warn:#FF9A8A;--ease:cubic-bezier(.16,1,.3,1);}.ds-table{font-family:\"Pretendard Variable\",Pretendard,system-ui,sans-serif;position:relative;background:var(--table);border:5px solid var(--line);border-radius:6px;color:var(--ink);}.ds-table::before,.ds-table::after{content:'';position:absolute;left:50%;width:2px;height:22px;margin-left:-1px;background:var(--line);opacity:.7;}.ds-table::before{top:0;}.ds-table::after{bottom:0;}.ds-net{height:3px;background:var(--line);}.ds-half{padding:32px 22px;}.ds-half h2{margin:0;font-size:18px;font-weight:800;}.ds-half p{margin:0;color:var(--ink-2);}"
+    },
+    {
+      "name": "Ball on the Net",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "Progress rail and scrubber: white net line with a rolling orange ball.",
+      "html": "<div class=\"ds-rail\" style=\"--p:.42\"><div class=\"ds-fill\"></div><div class=\"ds-ball\"></div></div>",
+      "css": ":host{--floor:#0B2340;--table:#17457A;--table-deep:#123A66;--line:#FFFFFF;--ball:#F28C28;--ink:#FFFFFF;--ink-2:#C9D8EC;--ink-3:#9DB4D3;--ok:#7FD8A6;--warn:#FF9A8A;--ease:cubic-bezier(.16,1,.3,1);}.ds-rail{position:relative;height:22px;width:280px;}.ds-rail::before{content:'';position:absolute;left:0;right:0;top:10px;height:3px;background:rgba(255,255,255,.3);}.ds-fill{position:absolute;left:0;top:10px;height:3px;width:calc(var(--p)*100%);background:var(--line);}.ds-ball{position:absolute;top:2px;left:calc(var(--p)*(100% - 18px));width:18px;height:18px;border-radius:50%;background:var(--ball);box-shadow:0 3px 8px rgba(3,12,26,.45);}"
+    },
+    {
+      "name": "Select",
+      "kind": "input",
+      "refersTo": "",
+      "description": "Playback speed select on the table.",
+      "html": "<select class=\"ds-select\"><option>0.25×</option><option>1×</option></select>",
+      "css": ":host{--floor:#0B2340;--table:#17457A;--table-deep:#123A66;--line:#FFFFFF;--ball:#F28C28;--ink:#FFFFFF;--ink-2:#C9D8EC;--ink-3:#9DB4D3;--ok:#7FD8A6;--warn:#FF9A8A;--ease:cubic-bezier(.16,1,.3,1);}.ds-select{font-family:\"Pretendard Variable\",Pretendard,system-ui,sans-serif;height:44px;padding:0 10px;border-radius:8px;border:2px solid rgba(255,255,255,.5);background:var(--table-deep);color:var(--ink);font-size:14px;}.ds-select:focus-visible{outline:3px solid var(--ball);outline-offset:3px;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Table Surface",
+    "overview": "The screen is a match table seen from above. A floor-navy ground holds one or more blue table tops, each framed by a white boundary line and split by a white net line; every working area sits inside one of those courts. The world rejects the default analysis-app layout of dark cards in a grid: panels are courts, dividers are painted lines, and the only warm thing on the page is the ball.\n\nThe system is dense but calm, built for one hand on a phone under bright hall lighting. Large touch targets (44px minimum, 56px for the primary action), high-contrast white-on-blue type, and tabular numerals so measurements line up. Motion is limited to the ball: it rolls along white lines on the progress rail and the scrubber, and the result view rises in once.\n\nThe 3D viewer belongs to the same world: its floor is the hall floor, its stage is a blue table top with white lines, the skeleton is drawn in white, and the impact point is the orange ball.",
+    "keyCharacteristics": [
+      "Floor navy ground, table blue panels, white 5px boundary and 3px net lines.",
+      "Orange appears only on things you can press and on impact.",
+      "Pills and circles for controls; near-square 6px corners for table tops.",
+      "Single family (Pretendard), weight carries hierarchy, numbers are tabular.",
+      "Status is mint (inside pro range) or coral (outside), never orange."
+    ],
+    "rules": [
+      {
+        "name": "The Ball Rule",
+        "body": "Orange is the ball: it marks what can be pressed and the moment of impact. It is never a status colour, a heading colour, or decoration.",
+        "section": "colors"
+      },
+      {
+        "name": "The Painted Line Rule",
+        "body": "Structure is drawn with white court lines (5px boundary, 3px net, 1px translucent hairlines), not with shadows, tinted cards, or extra background shades.",
+        "section": "colors"
+      },
+      {
+        "name": "The Advice-First Rule",
+        "body": "The correction sentence is set larger and heavier than any measured number near it; the next thing to fix outranks the data.",
+        "section": "typography"
+      },
+      {
+        "name": "The Only-The-Ball-Floats Rule",
+        "body": "Shadows belong to orange ball elements alone. Tables, plates, and ghost controls stay flat.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do put every working area inside a Table Blue panel with a 5px white boundary, and split it with a 3px white net.",
+      "Do reserve Ball Orange for pressable controls, focus, progress/scrub thumbs, and impact.",
+      "Do use mint for inside-range and coral for outside-range, each paired with an icon and words.",
+      "Do keep touch targets at 44px or larger; the primary action is 56px.",
+      "Do set every number with tabular figures and its unit in smaller Ink 2.",
+      "Do keep the 3D view the largest element on the result screen at every width.",
+      "Do disable all animation and transition under `prefers-reduced-motion`."
+    ],
+    "donts": [
+      "Don't build dark cards in a grid; panels are courts on a floor.",
+      "Don't use orange for status, headings, or decoration.",
+      "Don't add shadows to tables, plates, or ghost controls.",
+      "Don't introduce a second typeface; vary weight instead."
+    ]
+  }
+}

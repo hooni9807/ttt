@@ -5,7 +5,7 @@
 const ORIGINS = ["https://hooni9807.github.io", "http://127.0.0.1:8811", "http://localhost:8811"];
 const PROJECT = "ttt-swing";
 const DAILY = 20;
-const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+const MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
 const JWKS = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 
 let jwksCache = null;
@@ -71,7 +71,7 @@ function prompt(d) {
   ];
   return [
     { role: "system", content: "너는 생활체육 탁구 동호인을 돕는 친절한 코치다. 아래 측정값만 근거로 조언한다. 측정값에 없는 내용은 지어내지 않는다. 의학적 진단이나 부상 판단은 하지 않는다. 한국어 해요체로 쓴다. 우선순위: 힘 전달 순서가 어긋났으면 그것을 오늘의 과제로 가장 먼저 다루고, 정상이면 프로 범위를 벗어난 항목 중 하나를 고른다. '잘하고 있는 점'은 프로 범위 안에 든 항목이나 정상인 힘 전달 순서처럼 근거가 있는 것에서만 고르고, 근거가 없으면 '꾸준히 영상을 찍어 확인하는 습관'처럼 일반적인 칭찬을 한다." },
-    { role: "user", content: `다음은 폰 영상으로 분석한 내 포핸드 스윙 측정값이야.\n${lines.join("\n")}\n\n다음 형식으로 답해 줘. 다른 말은 붙이지 마.\n오늘의 과제: (가장 중요한 한 가지, 한 문장)\n왜 중요해요: (측정값을 근거로 한두 문장)\n연습 방법: (집이나 탁구장에서 할 수 있는 드릴 하나, 횟수 포함)\n잘하고 있는 점: (한 문장)` },
+    { role: "user", content: `다음은 폰 영상으로 분석한 내 포핸드 스윙 측정값이야.\n${lines.join("\n")}\n\n다음 형식으로 답해 줘. 다른 말은 붙이지 마.\n오늘의 과제: (가장 중요한 한 가지, 한 문장)\n왜 중요해요: (측정값을 근거로 한두 문장)\n연습 방법: (집이나 탁구장에서 할 수 있는 드릴 하나, 횟수 포함)\n잘하고 있는 점: (한 문장)\n/no_think` }, // Qwen3: 생각 과정 없이 바로 답하게
   ];
 }
 
@@ -103,8 +103,11 @@ export default {
     await env.LIMIT.put(key, String(used + 1), { expirationTtl: 2 * 86400 });
 
     try {
-      const out = await env.AI.run(MODEL, { messages: prompt(data), max_tokens: 500, temperature: 0.4 });
-      return json({ text: (out.response || "").trim(), left: DAILY - used - 1 }, 200, origin);
+      const out = await env.AI.run(MODEL, { messages: prompt(data), max_tokens: 800, temperature: 0.4 });
+      // Qwen3 은 OpenAI 형식(choices), Llama 계열은 response 로 답한다. 혹시 남은 생각(<think>) 부분은 지운다.
+      const text = (out.choices?.[0]?.message?.content ?? out.response ?? "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+      if (!text) throw new Error("empty");
+      return json({ text, left: DAILY - used - 1 }, 200, origin);
     } catch (e) {
       return json({ error: "AI 코치가 지금 답하지 못했어요. 잠시 뒤 다시 시도해 주세요." }, 502, origin);
     }

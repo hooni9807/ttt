@@ -87,7 +87,7 @@ uv run swing.py 내스윙.mp4 --ref my_pro.json
 
 ## AI 코치 (Cloudflare Workers AI)
 
-결과 화면 "AI 코치에게 물어보기"는 로그인한 사용자의 분석 수치(각도·속도·스윙 면·힘 전달 순서·점수)만 `worker/` 의 Cloudflare Worker 로 보내고, Workers AI(`@cf/meta/llama-3.3-70b-instruct-fp8-fast`)가 오늘의 과제·이유·연습 방법·잘하는 점을 한국어로 답합니다. 영상·좌표는 보내지 않습니다.
+결과 화면 "AI 코치에게 물어보기"는 로그인한 사용자의 분석 수치(각도·속도·스윙 면·힘 전달 순서·점수)만 `worker/` 의 Cloudflare Worker 로 보내고, Workers AI(`@cf/qwen/qwen3-30b-a3b-fp8`, 생각 과정 없이 바로 답하도록 `/no_think`)가 오늘의 과제·이유·연습 방법·잘하는 점을 한국어로 답합니다. 영상·좌표는 보내지 않습니다.
 
 - Worker 는 Firebase(Google 로그인) 토큰을 직접 검증하고, KV 로 1인당 하루 20번까지만 허용하며, 숫자·정해진 값만 받아 프롬프트를 서버에서 만듭니다.
 - 배포: `cd worker && npx wrangler deploy` (주소 https://ttt-coach.dchkimppi.workers.dev)

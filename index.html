@@ -237,6 +237,7 @@
   <symbol id="i-once" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8"/></symbol>
   <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></symbol>
   <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
   <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></symbol>
 </svg>
@@ -347,6 +348,7 @@
           <details><summary>프로 기준 출처</summary><ul id="src"></ul></details>
           <div class="actions" style="margin-top:20px">
             <button type="button" class="ball-btn" data-pick-video><svg class="icon"><use href="#i-upload"/></svg>다른 영상 분석</button>
+            <button type="button" class="ghost-btn" id="saveImage"><svg class="icon"><use href="#i-image"/></svg>이미지로 저장</button>
             <button type="button" class="ghost-btn" id="save"><svg class="icon"><use href="#i-save"/></svg>결과 저장</button>
             <button type="button" class="text-btn" data-open-json style="margin-top:0"><svg class="icon"><use href="#i-file"/></svg>저장한 결과 열기</button>
           </div>
@@ -885,6 +887,121 @@ document.querySelectorAll("[data-open-json]").forEach(b => b.onclick = () => $("
 $("vid").onchange = e => analyzeVideo(e.target.files[0]);
 $("json").onchange = e => openJson(e.target.files[0]);
 document.querySelectorAll("input[name=hand]").forEach(r => r.onchange = () => current && !busy && finish());
+// ---------- 결과 카드 이미지 (공유·보관용) ----------
+// 라이브러리 없이 캔버스에 직접 그린다. 1080x1500 세로 카드, 화면과 같은 탁구대 디자인.
+async function drawCard() {
+  await document.fonts.ready;
+  const W = 1080, H = 1500, M = 60, c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  const F = (w, s) => `${w} ${s}px "Pretendard Variable", Pretendard, system-ui, sans-serif`;
+  const C = { floor: "#0B2340", table: "#17457A", ink2: "#C9D8EC", ink3: "#9DB4D3", ball: "#F28C28", ok: "#7FD8A6", warn: "#FF9A8A" };
+  const text = (s, x, y, font, color = "#FFFFFF", align = "left") => { g.font = font; g.fillStyle = color; g.textAlign = align; g.fillText(s, x, y); };
+  const panel = (x, y, w, hh) => {
+    g.beginPath(); g.roundRect ? g.roundRect(x, y, w, hh, 10) : g.rect(x, y, w, hh);
+    g.fillStyle = C.table; g.fill(); g.lineWidth = 6; g.strokeStyle = "#FFFFFF"; g.stroke();
+  };
+  const line = (x1, y1, x2, y2, color, width) => { g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.strokeStyle = color; g.lineWidth = width; g.lineCap = "round"; g.stroke(); };
+  const wrap = (s, maxW, font) => { // 띄어쓰기 단위로 줄바꿈
+    g.font = font;
+    const out = [];
+    let cur = "";
+    for (const word of s.split(" ")) {
+      const next = cur ? `${cur} ${word}` : word;
+      if (g.measureText(next).width > maxW && cur) { out.push(cur); cur = word; } else cur = next;
+    }
+    return cur ? [...out, cur] : out;
+  };
+  g.fillStyle = C.floor; g.fillRect(0, 0, W, H);
+
+  // 머리줄
+  text("TTT", M, 100, F(900, 46));
+  text(`${new Date().toLocaleDateString("ko-KR")} · 탁구 스윙 분석`, W - M, 96, F(500, 26), C.ink2, "right");
+
+  // 점수
+  const { total, parts } = evalr.score;
+  panel(M, 140, W - 2 * M, 350);
+  text(total.toFixed(1), M + 44, 280, F(800, 120));
+  g.font = F(800, 120);
+  text("/ 10", M + 56 + g.measureText(total.toFixed(1)).width, 280, F(700, 40), C.ink2);
+  text("종합 점수 · 항목 평균 · 참고용", M + 44, 326, F(500, 26), C.ink2);
+  parts.forEach(([n, v, mx], i) => {
+    const y = 380 + i * 40, x0 = M + 230, x1 = W - M - 190, at = x0 + (x1 - x0) * (v / mx);
+    text(n, M + 44, y + 9, F(700, 26));
+    line(x0, y, x1, y, "rgba(255,255,255,.3)", 4);
+    line(x0, y, at, y, "#FFFFFF", 4);
+    g.beginPath(); g.arc(at, y, 13, 0, Math.PI * 2); g.fillStyle = C.ball; g.fill();
+    text(`${v.toFixed(1)}/${mx}`, W - M - 44, y + 9, F(800, 26), "#FFFFFF", "right");
+  });
+
+  // 세 순간 자세 (같은 축척)
+  const ph = data.metrics.phases, frames = PHASES.map(p => data.frames[ph[p]]);
+  const xs = frames.flatMap(fr => fr.slice(11).map(p => p[0])), ys = frames.flatMap(fr => fr.slice(11).map(p => p[1]));
+  const bx0 = Math.min(...xs), by0 = Math.min(...ys), bw = Math.max(...xs) - bx0, bh = Math.max(...ys) - by0;
+  const pw = (W - 2 * M - 2 * 24) / 3, py = 520, phh = 360;
+  PHASES.forEach((name, i) => {
+    const px = M + i * (pw + 24), fr = frames[i];
+    panel(px, py, pw, phh);
+    const s = Math.min((pw - 60) / bw, (phh - 90) / bh), ox = px + (pw - bw * s) / 2, oy = py + 24;
+    const Q = j => [ox + (fr[j][0] - bx0) * s, oy + (fr[j][1] - by0) * s];
+    for (const [a, b] of data.connections) if (a >= 11 && b >= 11) line(...Q(a), ...Q(b), "#FFFFFF", 6);
+    const head = Q(0);
+    g.beginPath(); g.arc(head[0], head[1], 14, 0, Math.PI * 2); g.fillStyle = "#FFFFFF"; g.fill();
+    const wr = Q(data.wrist_index);
+    g.beginPath(); g.arc(wr[0], wr[1], 11, 0, Math.PI * 2); g.fillStyle = C.ball; g.fill();
+    text(name, px + pw / 2, py + phh - 24, F(800, 28), "#FFFFFF", "center");
+  });
+
+  // 핵심 수치
+  const pl = evalr.plane;
+  text(`${data.metrics.impact_speed.toFixed(1)} m/s`, M, 960, F(800, 52));
+  text("임팩트 손목 속도", M, 996, F(500, 24), C.ink2);
+  text(pl.value === null ? "–" : `${pl.value}°`, W / 2, 960, F(800, 52));
+  text("스윙 면 기울기", W / 2, 996, F(500, 24), C.ink2);
+
+  // 구간별 각도 표
+  const cols = [M, M + 260, M + 500, M + 740];
+  ["항목", ...PHASES].forEach((t, i) => text(t, cols[i], 1056, F(600, 24), C.ink2));
+  [...new Set(evalr.rows.map(r => r.metric))].forEach((metric, k) => {
+    const y = 1104 + k * 50;
+    line(M, y - 36, W - M, y - 36, "rgba(255,255,255,.18)", 2);
+    text(metric, cols[0], y, F(700, 30));
+    PHASES.forEach((p, i) => {
+      const r = evalr.rows.find(x => x.phase === p && x.metric === metric), st = r.ref?.status;
+      text(`${r.value}°`, cols[i + 1], y, F(700, 30), st === "ok" ? C.ok : st === "low" || st === "high" ? C.warn : "#FFFFFF");
+    });
+  });
+
+  // 다음에 고칠 것 (최대 2개)
+  const fixes = [
+    ...evalr.rows.filter(r => r.tip).map(r => [`${r.phase} · ${r.metric}`, r.tip]),
+    ...(evalr.plane.tip ? [["스윙 면 기울기", evalr.plane.tip]] : []),
+    ...(evalr.chainTip ? [["힘 전달 순서", evalr.chainTip]] : []),
+  ].slice(0, 2);
+  text("다음 연습에서 고칠 것", M, 1290, F(800, 32));
+  let y = 1340;
+  if (!fixes.length) text("프로 기준을 벗어난 항목이 없어요.", M, y, F(500, 26), C.ink2);
+  for (const [label, tip] of fixes) {
+    text(label, M, y, F(700, 22), C.warn);
+    for (const ln of wrap(tip, W - 2 * M, F(600, 26)).slice(0, 2)) { y += 34; text(ln, M, y, F(600, 26)); }
+    y += 44;
+  }
+  text("hooni9807.github.io/ttt · 기준이 있는 항목만으로 계산한 참고 점수", W / 2, H - 28, F(500, 20), C.ink3, "center");
+  return new Promise(r => c.toBlob(r, "image/png"));
+}
+
+$("saveImage").onclick = async () => {
+  if (!data) return;
+  const blob = await drawCard();
+  const name = `ttt-swing-${new Date().toISOString().slice(0, 10)}.png`;
+  const file = new File([blob], name, { type: "image/png" });
+  // 폰에서는 공유 시트로 열어 사진 앱에 바로 저장하거나 카톡으로 보낼 수 있게
+  if (matchMedia("(pointer: coarse)").matches && navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: "TTT 스윙 분석" }); return; } catch (e) { if (e.name === "AbortError") return; }
+  }
+  h("a", { href: URL.createObjectURL(blob), download: name }).click();
+};
+
 $("save").onclick = () => {
   const { hasVideo, series, note, ...out } = data;
   out.frames = out.frames.map(f => f.map(p => p.map(x => Math.round(x * 1000) / 1000)));

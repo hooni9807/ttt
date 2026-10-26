@@ -223,6 +223,9 @@ Top of the feedback court: the total in 56px/800 white with a 20px "/ 10", a 14p
 ### Off-range wording
 When a measured value falls outside a pro range, the screen states the gap in words next to the range: 팔꿈치 "N° 더 접힘 / 더 펴짐", 무릎 "더 굽힘 / 더 펴짐", 몸통 꼬임 "덜 꼬임 / 더 꼬임", 스윙 면 기울기 "더 눕힘 / 더 세움". Swing plane is one value per swing, shown under the wrist speed in the comparison section.
 
+### Result Card (이미지로 저장)
+A 1080×1500 PNG drawn directly on a canvas in the same world: floor-navy ground, Table Blue panels with a 6px white border and 10px corners. Order: wordmark and date, score court (total 120px/800, parts as Ball-on-the-Net bars), three same-scale pose courts, wrist speed and swing plane at 52px/800, the angle table (in-range values mint, out-of-range coral), up to two fixes, and a 20px footer naming the site and that the score is a reference. Phones open the share sheet; desktops download.
+
 ### Video Overlay
 The result stage is one screen. With 3D off it shows the original video with the 2D skeleton drawn on a canvas over the video's contain-fit rectangle; with 3D on it shows the 3D scene, and the video (if still on) shrinks to a bordered inset at the top-right. Same colour rules as 3D: white bones and joints with a dark 3px outline so they read on any footage, the hitting arm in #FFB877, a head circle between the ears, the wrist path backswing→finish faint white with the played part solid orange, and an orange dot at impact. Four independent pill toggles (영상 / 스켈레톤 / 궤적 / 3D) sit bottom-left and combine freely: 스켈레톤 and 궤적 apply to both the 2D overlay and the 3D scene; the 3D camera presets appear above them only while 3D is on. With the video off, the dark letterbox ground stays. A JSON opened without video forces 3D on and disables 영상.
 

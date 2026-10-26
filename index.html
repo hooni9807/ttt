@@ -347,7 +347,7 @@
           <details><summary>프로 기준 출처</summary><ul id="src"></ul></details>
           <div class="actions" style="margin-top:20px">
             <button type="button" class="ball-btn" data-pick-video><svg class="icon"><use href="#i-upload"/></svg>다른 영상 분석</button>
-            <button type="button" class="ghost-btn" id="save"><svg class="icon"><use href="#i-save"/></svg>결과 JSON 저장</button>
+            <button type="button" class="ghost-btn" id="save"><svg class="icon"><use href="#i-save"/></svg>결과 저장</button>
             <button type="button" class="text-btn" data-open-json style="margin-top:0"><svg class="icon"><use href="#i-file"/></svg>저장한 결과 열기</button>
           </div>
         </section>
@@ -872,7 +872,7 @@ async function openJson(file) {
     finish();
   } catch {
     $("start").hidden = $("reopen").hidden = false; $("result").hidden = true;
-    showError("TTT 결과 파일이 아니에요. 이 페이지의 \"결과 JSON 저장\"으로 받은 파일을 열어 주세요.");
+    showError("TTT 결과 파일이 아니에요. 이 페이지의 \"결과 저장\"으로 받은 파일을 열어 주세요.");
   } finally {
     $("json").value = "";
   }

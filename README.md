@@ -11,7 +11,7 @@
 
 ## 웹에서 쓰기
 
-https://hooni9807.github.io/ttt/ 에서 스윙 영상을 올리면 3D 자세, 프로 기준 비교, 피드백을 바로 보여 줍니다. 영상은 서버로 가지 않고 브라우저 안에서 MediaPipe로 분석됩니다(`index.html` + `analyze.js`). "결과 JSON 저장"으로 받은 프로 스윙 분석은 `make_ranges.py`로 기준 범위를 만들 때 쓸 수 있습니다.
+https://hooni9807.github.io/ttt/ 에서 스윙 영상을 올리면 3D 자세, 프로 기준 비교, 피드백을 바로 보여 줍니다. 영상은 서버로 가지 않고 브라우저 안에서 MediaPipe로 분석됩니다(`index.html` + `analyze.js`). "결과 저장"으로 받은 프로 스윙 분석은 `make_ranges.py`로 기준 범위를 만들 때 쓸 수 있습니다.
 
 ## 명령줄로 실행
 

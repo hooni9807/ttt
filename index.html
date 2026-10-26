@@ -101,16 +101,18 @@
   .stage::before, .stage::after { display: none; }
   .views { position: relative; display: grid; grid-template-columns: 1fr; }
   #view { position: relative; height: min(62vh, 560px); min-height: 340px; cursor: grab; touch-action: none; }
-  .cams { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 6px; z-index: 1; }
-  .cams button { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 2px solid var(--line); background: rgba(11, 35, 64, .7); font-size: 13px; font-weight: 700; cursor: pointer; }
-  .cams button[aria-pressed=true] { background: var(--line); color: var(--floor); }
+  .chips { position: absolute; left: 12px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 6px; z-index: 1; }
+  .chips button { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 2px solid var(--line); background: rgba(11, 35, 64, .7); font-size: 13px; font-weight: 700; cursor: pointer; }
+  .chips button[aria-pressed=true] { background: var(--line); color: var(--floor); }
   #view:active { cursor: grabbing; }
   #view canvas { display: block; }
-  .views video {
-    position: absolute; left: 12px; top: 12px; width: 32%; max-width: 220px; max-height: 45%;
-    object-fit: cover; border: 2px solid var(--line); border-radius: 6px; background: #061528;
-  }
-  .stage.no-video .views video { display: none; }
+  /* 원본 영상 + 그 위에 그린 2D 스켈레톤 */
+  .vbox { position: relative; height: min(48vh, 440px); min-height: 280px; background: #061528; border-bottom: 3px solid var(--line); }
+  .vbox video { display: block; width: 100%; height: 100%; object-fit: contain; }
+  .vbox canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .vbox[data-mode=skeleton] video { visibility: hidden; }
+  .vbox[data-mode=video] canvas { display: none; }
+  .stage.no-video .vbox { display: none; }
   .meta { position: absolute; right: 14px; top: 12px; font-size: 12px; color: var(--ink-3); text-align: right; }
 
   .controls { display: flex; align-items: center; gap: 10px; padding: 14px 16px 6px; }
@@ -198,7 +200,7 @@
     /* 영상이 있어도 3D 가 더 크게 */
     .views { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
     .callout { padding: 40px 48px 36px; }
-    .views video { position: static; width: 100%; max-width: none; max-height: none; height: min(62vh, 560px); border: 0; border-radius: 0; object-fit: contain; }
+    .vbox { height: min(62vh, 560px); border-bottom: 0; }
     .views #view { border-left: 3px solid var(--line); }
     .stage.no-video .views { grid-template-columns: 1fr; }
     .stage.no-video .views #view { border-left: 0; }
@@ -268,9 +270,16 @@
     <section id="result" hidden aria-label="분석 결과">
       <div class="table stage" id="stage">
         <div class="views">
-          <div id="videoSlot" style="display:contents"></div>
+          <div class="vbox" id="vbox" data-mode="both">
+            <canvas id="overlay" aria-hidden="true"></canvas>
+            <div class="chips" role="group" aria-label="영상 보기 방식">
+              <button type="button" data-mode="both" aria-pressed="true">영상+스켈레톤</button>
+              <button type="button" data-mode="skeleton" aria-pressed="false">스켈레톤만</button>
+              <button type="button" data-mode="video" aria-pressed="false">영상만</button>
+            </div>
+          </div>
           <div id="view" aria-label="3D 스윙. 드래그로 돌리고 두 손가락이나 휠로 확대합니다.">
-            <div class="cams" role="group" aria-label="보는 방향">
+            <div class="chips" role="group" aria-label="보는 방향">
               <button type="button" data-cam="front" aria-pressed="true">영상 시점</button>
               <button type="button" data-cam="side" aria-pressed="false">옆</button>
               <button type="button" data-cam="top" aria-pressed="false">위</button>
@@ -431,6 +440,52 @@ function placeBody(f) {
   }
 }
 
+// 원본 영상 위 2D 스켈레톤. 3D 와 같은 색 규칙: 흰 몸, 따뜻한 치는 팔, 오렌지 궤적·임팩트.
+const overlay = $("overlay"), octx = overlay.getContext("2d");
+function drawOverlay() {
+  const box = $("vbox"), w = box.clientWidth, hh = box.clientHeight, dpr = devicePixelRatio;
+  if (overlay.width !== Math.round(w * dpr) || overlay.height !== Math.round(hh * dpr)) {
+    overlay.width = Math.round(w * dpr);
+    overlay.height = Math.round(hh * dpr);
+  }
+  octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  octx.clearRect(0, 0, w, hh);
+  if (!data?.frames2d || !data.hasVideo || box.dataset.mode === "video" || !video.videoWidth) return;
+  // object-fit: contain 으로 영상이 실제 그려진 영역에 맞춘다
+  const s = Math.min(w / video.videoWidth, hh / video.videoHeight);
+  const vw = video.videoWidth * s, vh = video.videoHeight * s, ox = (w - vw) / 2, oy = (hh - vh) / 2;
+  const Q = (f, j) => [ox + data.frames2d[f][j][0] * vw, oy + data.frames2d[f][j][1] * vh];
+  const hd = data.wrist_index === wristIndex("L") ? "L" : "R", other = hd === "L" ? "R" : "L";
+  const lw = Math.max(3, vh / 120), shade = "rgba(6, 21, 40, .75)";
+  octx.lineCap = octx.lineJoin = "round";
+  const path = (pts, color, width) => {
+    if (pts.length < 2) return;
+    octx.strokeStyle = color; octx.lineWidth = width;
+    octx.beginPath(); octx.moveTo(...pts[0]); pts.slice(1).forEach(p => octx.lineTo(...p)); octx.stroke();
+  };
+  const dot = ([x, y], r, color) => { octx.fillStyle = color; octx.beginPath(); octx.arc(x, y, r, 0, Math.PI * 2); octx.fill(); };
+
+  // 손목 궤적: 백스윙~피니시 전체는 옅게, 지금까지 지나온 부분은 오렌지로
+  const { 백스윙: s0, 임팩트: imp, 피니시: s1 } = data.metrics.phases;
+  const a = Math.max(0, s0 - 2), b = Math.min(data.frames2d.length - 1, s1 + 2), wj = data.wrist_index;
+  const all = [];
+  for (let f = a; f <= b; f++) all.push(Q(f, wj));
+  path(all, "rgba(255, 255, 255, .35)", lw * 0.8);
+  path(all.slice(0, Math.max(0, frame - a + 1)), "#F28C28", lw * 0.9);
+
+  const bones = [...TRUNK_LEGS, ...ARM[other]].map(([p, q]) => [p, q, "#FFFFFF"]).concat(ARM[hd].map(([p, q]) => [p, q, "#FFB877"]));
+  bones.forEach(([p, q]) => path([Q(frame, p), Q(frame, q)], shade, lw + 3));
+  bones.forEach(([p, q, c]) => path([Q(frame, p), Q(frame, q)], c, lw));
+  JOINTS.forEach(j => { dot(Q(frame, j), lw * 1.1 + 1.5, shade); dot(Q(frame, j), lw * 1.1, ARM[hd].flat().includes(j) ? "#FFB877" : "#FFFFFF"); });
+  // 머리: 두 귀 가운데에 원
+  const e1 = Q(frame, 7), e2 = Q(frame, 8), hc = mid(e1, e2), hr = Math.max(lw * 2.5, Math.hypot(e1[0] - e2[0], e1[1] - e2[1]) * 0.75);
+  octx.beginPath(); octx.arc(...hc, hr, 0, Math.PI * 2);
+  octx.strokeStyle = shade; octx.lineWidth = lw + 3; octx.stroke();
+  octx.strokeStyle = "#FFFFFF"; octx.lineWidth = lw; octx.stroke();
+  if (frame >= imp) dot(Q(imp, wj), lw * 2, "#F28C28");
+}
+new ResizeObserver(() => data && drawOverlay()).observe($("vbox"));
+
 // 스윙 궤적: 백스윙~피니시 구간만, 굵은 관으로. 전체 경로는 옅게, 지금까지 지나온 부분은 진하게.
 function buildTrail() {
   [trailFull, trailNow].forEach(o => o && scene.remove(o));
@@ -505,6 +560,7 @@ const fmt = (v, d = 0) => (v === undefined || Number.isNaN(v) ? "–" : v.toFixe
 function show(f) {
   frame = Math.max(0, Math.min(f, data.frames.length - 1));
   placeBody(frame);
+  drawOverlay();
   if (trailRange) {
     const { a, b, segs, radial } = trailRange;
     const t = Math.min(1, Math.max(0, (frame - a) / (b - a)));
@@ -609,7 +665,7 @@ function renderChain() {
 function showResult() {
   $("start").hidden = true;
   $("result").hidden = false;
-  $("videoSlot").append(video);
+  $("vbox").prepend(video);
   window.scrollTo({ top: 0 });
 }
 
@@ -629,13 +685,13 @@ function load(d) {
 
 // current: { pts, fps, note, hasVideo } — 손잡이를 바꾸면 다시 계산
 function finish() {
-  const { pts, fps, note, hasVideo } = current, hd = hand();
+  const { pts, pts2d, fps, note, hasVideo } = current, hd = hand();
   const m = analyze(pts, fps, hd);
   const { speed, series } = m;
   delete m.speed; delete m.series;
   load({
     fps, connections: CONNECTIONS, wrist_index: wristIndex(hd),
-    frames: pts, speed, series, metrics: m, report: report(m, fps, ref, tips), note, hasVideo,
+    frames: pts, frames2d: pts2d, speed, series, metrics: m, report: report(m, fps, ref, tips), note, hasVideo,
   });
 }
 
@@ -708,16 +764,19 @@ async function analyzeVideo(file) {
     setStep("포즈 모델 불러오는 중", "처음 한 번만 받아요 · 약 10MB");
     const lm = await getLandmarker();
     const n = Math.floor(Math.min(video.duration, MAX_SEC) * fps);
-    const raw = [];
+    const raw = [], raw2d = [];
     for (let i = 0; i < n; i++) {
       await seek(video, (i + 0.5) / fps);
       const r = lm.detectForVideo(video, (i * 1000) / fps);
-      raw.push(r.worldLandmarks[0]?.map(p => [p.x, p.y, p.z]) ?? null);
+      const found = r.worldLandmarks[0] && r.landmarks[0];
+      raw.push(found ? r.worldLandmarks[0].map(p => [p.x, p.y, p.z]) : null);
+      // 영상 위에 그릴 2D 좌표 (0~1, 영상 가로·세로 기준)
+      raw2d.push(found ? r.landmarks[0].map(p => [p.x, p.y, 0]) : null);
       if (i % 4 === 0) setStep("3D 자세 복원 중", `${i} / ${n} 프레임 · ${fps}fps`, i / n);
     }
     setStep("스윙 계산 중", "", 1);
-    const pts = smooth(raw, fps);
-    current = { pts, fps, hasVideo: true,
+    const pts = smooth(raw, fps), pts2d = smooth(raw2d, fps);
+    current = { pts, pts2d, fps, hasVideo: true,
       note: `${fps}fps · ${pts.length}프레임` + (video.duration > MAX_SEC ? ` · 최대 ${MAX_SEC}초라 앞부분만 분석` : "") };
     finish();
   } catch (err) {
@@ -735,7 +794,7 @@ async function openJson(file) {
     if (!Array.isArray(d.frames) || !d.fps) throw new Error();
     document.querySelector(`input[name=hand][value=${d.wrist_index === wristIndex("L") ? "L" : "R"}]`).checked = true;
     video.removeAttribute("src"); video.load();
-    current = { pts: d.frames, fps: d.fps, hasVideo: false, note: `${file.name} · ${d.frames.length}프레임` };
+    current = { pts: d.frames, pts2d: d.frames2d, fps: d.fps, hasVideo: false, note: `${file.name} · ${d.frames.length}프레임` };
     finish();
   } catch {
     $("start").hidden = false; $("result").hidden = true;
@@ -755,6 +814,7 @@ document.querySelectorAll("input[name=hand]").forEach(r => r.onchange = () => cu
 $("save").onclick = () => {
   const { hasVideo, series, note, ...out } = data;
   out.frames = out.frames.map(f => f.map(p => p.map(x => Math.round(x * 1000) / 1000)));
+  if (out.frames2d) out.frames2d = out.frames2d.map(f => f.map(([x, y]) => [Math.round(x * 10000) / 10000, Math.round(y * 10000) / 10000]));
   out.speed = out.speed.map(s => Math.round(s * 100) / 100);
   const a = h("a", { href: URL.createObjectURL(new Blob([JSON.stringify(out)], { type: "application/json" })), download: "ttt-swing.json" });
   a.click();
@@ -763,6 +823,11 @@ $("rate").onchange = () => { video.playbackRate = +$("rate").value; };
 $("seek").oninput = e => go(+e.target.value);
 document.querySelectorAll("[data-ph]").forEach(b => b.onclick = () => data && go(data.metrics.phases[b.dataset.ph]));
 document.querySelectorAll("[data-cam]").forEach(b => b.onclick = () => setCam(b.dataset.cam));
+document.querySelectorAll("button[data-mode]").forEach(b => b.onclick = () => {
+  $("vbox").dataset.mode = b.dataset.mode;
+  document.querySelectorAll("button[data-mode]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  drawOverlay();
+});
 // 손으로 돌리기 시작하면 프리셋 선택 해제
 controls.addEventListener("start", () => { camTween = null; setCam(null); });
 const setPlayIcon = on => {

@@ -18,6 +18,7 @@ MODEL = Path(__file__).with_name("pose_landmarker_heavy.task")
 MODEL_URL = ("https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
              "pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task")
 PRO_RANGES = Path(__file__).with_name("pro_ranges.json")
+TIPS = json.loads(Path(__file__).with_name("tips.json").read_text())
 L = vision.PoseLandmark
 CONNECTIONS = [(c.start, c.end) for c in vision.PoseLandmarksConnections.POSE_LANDMARKS]
 PHASES = ("백스윙", "임팩트", "피니시")
@@ -116,25 +117,32 @@ def analyze(pts, fps, hand="R"):
 def report(m, fps, ref=None):
     """ref: pro_ranges.json 형식. 항목마다 {min, max} 범위 또는 {value} 참고값과 source."""
     ref = ref or {}
-    used = []
+    used, feedback = [], []
 
-    def check(v, r):
+    def check(v, r, label=None, key=None):
         if not r:
             return ""
         used.append(r["source"])
-        if "min" in r:
-            return f" (프로 {r['min']:g}~{r['max']:g} {'✓' if r['min'] <= v <= r['max'] else '⚠'})"
-        return f" (프로 참고 {r['value']:g})"
+        if "min" not in r:
+            return f" (프로 참고 {r['value']:g})"
+        d = "low" if v < r["min"] else "high" if v > r["max"] else None
+        if d and key in TIPS:
+            feedback.append(f"[{label}] {key}: {TIPS[key][d]}")
+        return f" (프로 {r['min']:g}~{r['max']:g} {'⚠' if d else '✓'})"
 
     lines = [f"임팩트 손목 속도: {m['impact_speed']:.1f} m/s (프레임 {m['phases']['임팩트']})"
              + check(m["impact_speed"], ref.get("impact_speed"))]
     for ph, a in m["angles"].items():
         r = ref.get("angles", {}).get(ph, {})
-        lines.append(f"[{ph}] " + ", ".join(f"{k} {v}°" + check(v, r.get(k)) for k, v in a.items()))
+        lines.append(f"[{ph}] " + ", ".join(f"{k} {v}°" + check(v, r.get(k), ph, k) for k, v in a.items()))
     order = " → ".join(sorted(CHAIN, key=lambda k: m["chain_peaks"][k]))
     t = {k: (f - m["phases"]["임팩트"]) / fps * 1000 for k, f in m["chain_peaks"].items()}
     lines.append(f"힘 전달 순서: {order} " + ("✓ 정상" if m["chain_ok"] else "⚠ 순서가 어긋남 (팔로만 치는 스윙 의심)"))
     lines.append("  최고속도 시점(임팩트 기준): " + ", ".join(f"{k} {v:+.0f}ms" for k, v in t.items()))
+    if not m["chain_ok"]:
+        feedback.append(f"[힘 전달] {TIPS['힘 전달']}")
+    if feedback:
+        lines += ["", "피드백:"] + [f"  - {f}" for f in feedback]
     if used:
         lines += ["", "프로 기준 출처:"] + [f"  - {s}" for s in dict.fromkeys(used)]
     return "\n".join(lines)

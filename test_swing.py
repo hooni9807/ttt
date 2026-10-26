@@ -53,4 +53,23 @@ assert pro["angles"]["임팩트"]["팔꿈치"] == {"min": 100.0, "max": 120.0, "
 text = report({**m, "impact_speed": 6.0, "angles": {"임팩트": {"팔꿈치": 130}}}, FPS, pro)
 assert "프로 5~7 ✓" in text and "팔꿈치 130° (프로 100~120 ⚠)" in text and "- 테스트" in text, text
 
+assert "피드백:" in text and "팔이 너무 펴져 있어요" in text, text
+
+# 웹(analyze.js)이 Python 과 같은 결과를 내는지 대조 (node 가 있을 때)
+import json, shutil, subprocess, tempfile
+from pathlib import Path
+
+if shutil.which("node"):
+    cases = []
+    for fps in (60, 240):
+        r = analyze(smooth(holes, fps), fps)
+        r.pop("speed")
+        cases.append({"fps": fps, "expected": r,
+                      "pts": [None if np.isnan(f).all() else f.tolist() for f in holes]})
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump({"cases": cases, "ref": json.loads(Path("pro_ranges.json").read_text())}, f, ensure_ascii=False)
+    subprocess.run(["node", "test_analyze.mjs", f.name], check=True)
+else:
+    print("node 없음: 웹 분석 대조 생략")
+
 print("ok")

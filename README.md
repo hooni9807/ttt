@@ -84,3 +84,10 @@ uv run swing.py 내스윙.mp4 --ref my_pro.json
 4. **학습**: `uv run train_scorer.py ttt-labels-날짜.json -o scorer.json`
    - 구간별 각도 9개, 손목 속도, 스윙 면, 힘 전달 순서·타이밍으로 사람 점수를 맞히는 릿지 회귀를 학습합니다.
    - 하나씩 빼고 맞혀 본 평균 오차를 "모두 평균으로 찍었을 때"와 비교해 출력합니다. 최소 10개, 믿을 만하려면 50개 이상 필요합니다.
+
+## AI 코치 (Cloudflare Workers AI)
+
+결과 화면 "AI 코치에게 물어보기"는 로그인한 사용자의 분석 수치(각도·속도·스윙 면·힘 전달 순서·점수)만 `worker/` 의 Cloudflare Worker 로 보내고, Workers AI(`@cf/meta/llama-3.3-70b-instruct-fp8-fast`)가 오늘의 과제·이유·연습 방법·잘하는 점을 한국어로 답합니다. 영상·좌표는 보내지 않습니다.
+
+- Worker 는 Firebase(Google 로그인) 토큰을 직접 검증하고, KV 로 1인당 하루 20번까지만 허용하며, 숫자·정해진 값만 받아 프롬프트를 서버에서 만듭니다.
+- 배포: `cd worker && npx wrangler deploy` (주소 https://ttt-coach.dchkimppi.workers.dev)

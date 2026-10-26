@@ -1,0 +1,10 @@
+name = "ttt-coach"
+main = "index.js"
+compatibility_date = "2026-10-01"
+
+[ai]
+binding = "AI"
+
+[[kv_namespaces]]
+binding = "LIMIT"
+id = "df5622c4f84a43f6ac70fad261b67187"

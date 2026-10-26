@@ -100,6 +100,12 @@ if (/KAKAOTALK/i.test(navigator.userAgent)) window.openInChrome();
   .text-btn { display: inline-flex; gap: 8px; align-items: center; margin-top: 18px; padding: 8px 0; background: none; border: 0; color: var(--ink-2); font-size: 14px; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: rgba(255,255,255,.4); }
   .text-btn:hover { color: var(--ink); }
   .reopen { padding: 8px 4px 32px; }
+  /* AI 코치 */
+  .coach { margin-top: 18px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,.25); display: grid; gap: 12px; }
+  .coach .row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  .coach-note { font-size: 13px; color: var(--ink-2); }
+  .coach-text { white-space: pre-line; font-size: 16px; line-height: 1.7; padding: 14px 16px; border-radius: 10px; background: var(--table-deep); border: 2px solid rgba(255,255,255,.3); max-width: 46em; }
+  .coach-text small { display: block; margin-top: 8px; font-size: 12px; color: var(--ink-3); }
   /* 여러 번 친 영상: 스윙 고르기 */
   .swings { padding: 14px 16px 12px; border-bottom: 3px solid var(--line); }
   .swings-title { font-size: 14px; color: var(--ink-2); margin-bottom: 10px; }
@@ -410,6 +416,13 @@ if (/KAKAOTALK/i.test(navigator.userAgent)) window.openInChrome();
           <div class="score" id="score"></div>
           <h2>다음 연습에서 고칠 것</h2>
           <ol class="fb" id="fb"></ol>
+          <div class="coach" id="coach" hidden>
+            <div class="row">
+              <button type="button" class="ghost-btn" id="askCoach"><span>AI 코치에게 물어보기</span></button>
+              <span class="coach-note" id="coachNote">로그인하면 쓸 수 있어요 · 하루 20번</span>
+            </div>
+            <p class="coach-text" id="coachText" aria-live="polite" hidden></p>
+          </div>
         </section>
         <section>
           <h2>자세 비교</h2>
@@ -869,6 +882,8 @@ function load(d) {
   renderCompare();
   renderChain();
   resetContribute();
+  $("coach").hidden = !firebaseConfig;
+  $("coachText").hidden = true;
   go(d.metrics.phases["임팩트"]);
 }
 
@@ -1290,6 +1305,40 @@ $("login").onclick = async () => {
   catch (e) { if (!["auth/popup-closed-by-user", "auth/cancelled-popup-request"].includes(e.code)) { console.error(e); alert("로그인하지 못했어요. 잠시 뒤 다시 시도해 주세요."); } }
 };
 $("logout").onclick = async () => { const { auth, au } = await fb(); await auth.signOut(au); };
+
+// ---------- AI 코치 (Cloudflare Worker + Workers AI) ----------
+// 로그인한 사람만, 숫자·판정만 보낸다(영상·좌표 X). 서버가 하루 횟수를 제한한다.
+const COACH_URL = "https://ttt-coach.dchkimppi.workers.dev";
+function coachPayload() {
+  const m = data.metrics, pk = m.chain_peaks;
+  const off = evalr.rows.filter(r => r.ref && (r.ref.status === "low" || r.ref.status === "high"))
+    .map(r => ({ phase: r.phase, metric: r.metric, status: r.ref.status, value: r.value, min: r.ref.min, max: r.ref.max }));
+  const pl = evalr.plane;
+  if (pl.ref && (pl.ref.status === "low" || pl.ref.status === "high")) off.push({ phase: "스윙", metric: "스윙 면 기울기", status: pl.ref.status, value: pl.value, min: pl.ref.min, max: pl.ref.max });
+  return {
+    angles: m.angles, order: [...CHAIN].sort((a, b) => pk[a] - pk[b]), chainOk: m.chain_ok,
+    speed: m.impact_speed, plane: m.swing_plane ?? null, score: evalr.score.total,
+    hand: data.wrist_index === wristIndex("L") ? "L" : "R", off,
+  };
+}
+$("askCoach").onclick = async () => {
+  if (!user) { $("login").click(); return; }
+  const b = $("askCoach"), label = b.lastChild.textContent;
+  b.disabled = true; b.lastChild.textContent = "코치가 보는 중...";
+  try {
+    const token = await user.getIdToken();
+    const r = await fetch(COACH_URL, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(coachPayload()) });
+    const out = await r.json();
+    $("coachText").hidden = false;
+    if (!r.ok) { $("coachText").replaceChildren(out.error || "AI 코치가 지금 답하지 못했어요."); return; }
+    $("coachText").replaceChildren(out.text, h("small", {}, "AI가 측정값으로 만든 참고용 조언이에요. 틀릴 수 있어요."));
+    $("coachNote").textContent = `오늘 ${out.left}번 남았어요`;
+  } catch (e) {
+    console.error(e);
+    $("coachText").hidden = false;
+    $("coachText").replaceChildren("AI 코치에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.");
+  } finally { b.disabled = false; b.lastChild.textContent = label; }
+};
 
 $("save").onclick = () => {
   if (IN_KAKAO) { $("saveNote").hidden = false; return; }

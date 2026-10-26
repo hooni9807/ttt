@@ -5,3 +5,5 @@ __pycache__/
 *.mov
 .impeccable/review/
 .impeccable/mocks/
+worker/.wrangler/
+worker/node_modules/

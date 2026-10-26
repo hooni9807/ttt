@@ -51,10 +51,21 @@ from swing import report
 pro = ranges([{"impact_speed": s, "angles": {ph: {"팔꿈치": e} for ph in ("백스윙", "임팩트", "피니시")}}
               for s, e in ((5, 100), (6, 110), (7, 120))], "테스트")
 assert pro["angles"]["임팩트"]["팔꿈치"] == {"min": 100.0, "max": 120.0, "source": "테스트"}
+assert "swing_plane" not in pro  # 스윙 면 값이 없으면 범위도 만들지 않는다
+assert ranges([{"impact_speed": 1, "swing_plane": v, "angles": {ph: {} for ph in ("백스윙", "임팩트", "피니시")}} for v in (40, 50, 60)], "t")["swing_plane"] == {"min": 40.0, "max": 60.0, "source": "t"}
 text = report({**m, "impact_speed": 6.0, "angles": {"임팩트": {"팔꿈치": 130}}}, FPS, pro)
 assert "프로 5~7 ✓" in text and "팔꿈치 130° (프로 100~120 ⚠)" in text and "- 테스트" in text, text
 
 assert "피드백:" in text and "팔이 너무 펴져 있어요" in text, text
+
+# 스윙 면: 바닥에서 30° 기운 평면 위의 호 → 30°, 직선 궤적 → None
+from swing import swing_plane
+
+phi = np.linspace(0, np.pi, 40)[:, None]
+u, w = np.array([1, 0, 0]), np.array([0, -np.sin(np.radians(30)), np.cos(np.radians(30))])
+arc = 0.5 * (np.cos(phi) * u + np.sin(phi) * w)
+assert swing_plane(arc) == 30, swing_plane(arc)
+assert swing_plane(np.linspace(0, 1, 20)[:, None] * u) is None
 
 # 점수: 항목마다 10점. 힘 전달 순서 정상(10), 범위 2개 중 1개 안(5), 손목 속도 기준의 절반(5) → 평균 6.7
 from swing import score
@@ -74,13 +85,19 @@ from pathlib import Path
 
 if shutil.which("node"):
     cases = []
-    for fps in (60, 240):
-        r = analyze(smooth(holes, fps), fps)
+    # 논문 기준 + 스윙 면 범위(20~25°)를 붙여서, 30° 스윙이 범위 밖 판정·피드백·점수까지 같게 나오는지 본다
+    ref_t = {**json.loads(Path("pro_ranges.json").read_text()), "swing_plane": {"min": 20, "max": 25, "source": "테스트 스윙 면"}}
+    # 손목이 30° 기운 평면 위에서 움직이는 경우도 대조 (스윙 면이 정해지는 경우)
+    tilted = pts.copy()
+    ang = np.pi * (0.5 + 0.5 * np.tanh((t - 80.3) / 6))[:, None]  # 80.3: 두 프레임 속도가 똑같이 최대가 되지 않게
+    tilted[:, L.RIGHT_WRIST] = pose[L.RIGHT_SHOULDER] + 0.5 * (np.cos(ang) * u + np.sin(ang) * w)
+    for fps, data in ((60, holes), (240, holes), (60, tilted)):
+        r = analyze(smooth(data, fps), fps)
         r.pop("speed")
-        cases.append({"fps": fps, "expected": r, "report": report(r, fps, json.loads(Path("pro_ranges.json").read_text())),
-                      "pts": [None if np.isnan(f).all() else f.tolist() for f in holes]})
+        cases.append({"fps": fps, "expected": r, "report": report(r, fps, ref_t),
+                      "pts": [None if np.isnan(f).all() else f.tolist() for f in data]})
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-        json.dump({"cases": cases, "ref": json.loads(Path("pro_ranges.json").read_text())}, f, ensure_ascii=False)
+        json.dump({"cases": cases, "ref": ref_t}, f, ensure_ascii=False)
     subprocess.run(["node", "test_analyze.mjs", f.name], check=True)
 else:
     print("node 없음: 웹 분석 대조 생략")

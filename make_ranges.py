@@ -18,11 +18,15 @@ def ranges(metrics, source):
         mean, sd = np.mean(vals), np.std(vals, ddof=1)
         return {"min": round(float(mean - sd), 1), "max": round(float(mean + sd), 1), "source": source}
 
-    return {
+    planes = [m["swing_plane"] for m in metrics if m.get("swing_plane") is not None]
+    out = {
         "impact_speed": r([m["impact_speed"] for m in metrics]),
         "angles": {ph: {k: r([m["angles"][ph][k] for m in metrics]) for k in metrics[0]["angles"][ph]}
                    for ph in PHASES},
     }
+    if len(planes) >= 2:
+        out["swing_plane"] = r(planes)
+    return out
 
 
 def main():

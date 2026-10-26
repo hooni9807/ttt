@@ -12,6 +12,7 @@ for (const c of fx.cases) {
   if (JSON.stringify(m.phases) !== JSON.stringify(py.phases)) fail("phases");
   if (JSON.stringify(m.chain_peaks) !== JSON.stringify(py.chain_peaks)) fail("chain_peaks");
   if (m.chain_ok !== py.chain_ok) fail("chain_ok");
+  if (m.swing_plane !== py.swing_plane) fail("swing_plane");
   if (Math.abs(m.impact_speed - py.impact_speed) > 0.011) fail("impact_speed");
   for (const ph in py.angles) for (const k in py.angles[ph])
     if (Math.abs(m.angles[ph][k] - py.angles[ph][k]) > 1) fail(`angle ${ph} ${k}`);

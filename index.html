@@ -327,6 +327,7 @@
         <section>
           <h2>자세 비교</h2>
           <div class="speed" id="speed"></div>
+          <div class="speed" id="plane"></div>
           <div class="plates" id="plates"></div>
           <table>
             <thead><tr><th scope="col">항목</th><th scope="col">백스윙</th><th scope="col">임팩트</th><th scope="col">피니시</th></tr></thead>
@@ -619,20 +620,37 @@ function renderScore() {
       h("span", {}, n),
       h("span", { class: "rail", style: `--p:${g / mx}`, "aria-hidden": "true" }, h("span", { class: "fill" }), h("span", { class: "ball" })),
       h("b", {}, `${g.toFixed(1)}/${mx}`)))),
-    h("p", { class: "score-note" }, `항목마다 10점 만점이고, 종합 점수는 기준이 있는 항목(${parts.map(p => p[0]).join(", ")})의 평균이에요. 공개된 기준이 없는 팔꿈치·몸통 꼬임은 점수에 넣지 않았어요.`));
+    h("p", { class: "score-note" }, `항목마다 10점 만점이고, 종합 점수는 기준이 있는 항목(${parts.map(p => p[0]).join(", ")})의 평균이에요.`
+      + (noRef().length ? ` 프로 기준이 없는 ${noRef().join("·")}은 점수에 넣지 않았어요.` : "")));
 }
+
+// 프로 범위가 하나도 없는 측정 항목 (점수·판정에서 빠짐)
+function noRef() {
+  const has = new Set(evalr.rows.filter(r => r.ref?.min !== undefined).map(r => r.metric));
+  if (evalr.plane.ref?.min !== undefined) has.add("스윙 면 기울기");
+  return ["팔꿈치", "무릎", "몸통 꼬임", "스윙 면 기울기"].filter(k => !has.has(k));
+}
+
+// 프로 범위에서 벗어난 정도를 말로: "7° 더 접힘"
+const GAP = { 팔꿈치: ["더 접힘", "더 펴짐"], 무릎: ["더 굽힘", "더 펴짐"], "몸통 꼬임": ["덜 꼬임", "더 꼬임"], "스윙 면 기울기": ["더 눕힘", "더 세움"] };
+const gap = (v, r, metric) => (v < r.min ? `${r.min - v}° ${GAP[metric][0]}` : `${v - r.max}° ${GAP[metric][1]}`);
 
 function renderFeedback() {
   const items = evalr.rows.filter(r => r.tip).map(r => h("li", {},
     h("h3", {}, icon("alert"), `${r.phase} · ${r.metric}`),
     h("p", {}, r.tip),
-    h("p", { class: "detail" }, `내 스윙 ${r.value}° · 프로 ${r.ref.min}~${r.ref.max}°`)));
+    h("p", { class: "detail" }, `내 스윙 ${r.value}° · 프로 ${r.ref.min}~${r.ref.max}° · ${gap(r.value, r.ref, r.metric)}`)));
+  const pl = evalr.plane;
+  if (pl.tip) items.push(h("li", {},
+    h("h3", {}, icon("alert"), "스윙 · 스윙 면 기울기"),
+    h("p", {}, pl.tip),
+    h("p", { class: "detail" }, `내 스윙 ${pl.value}° · 프로 ${pl.ref.min}~${pl.ref.max}° · ${gap(pl.value, pl.ref, "스윙 면 기울기")}`)));
   if (evalr.chainTip) items.push(h("li", {},
     h("h3", {}, icon("alert"), "힘 전달 순서"),
     h("p", {}, evalr.chainTip),
     h("p", { class: "detail" }, "가장 빨라진 순서: " + [...CHAIN].sort((a, b) => data.metrics.chain_peaks[a] - data.metrics.chain_peaks[b]).join(" → "))));
   if (!items.length) items.push(h("li", {}, h("p", { class: "none" },
-    "프로 기준을 벗어난 항목이 없어요. 팔꿈치와 몸통 꼬임은 아직 공개된 기준이 없어서 아래에 수치만 보여 드려요.")));
+    "프로 기준을 벗어난 항목이 없어요." + (noRef().length ? ` ${noRef().join(", ")}은 아직 프로 기준이 없어서 아래에 수치만 보여 드려요.` : ""))));
   $("fb").replaceChildren(...items);
 }
 
@@ -641,6 +659,12 @@ function renderCompare() {
   $("speed").replaceChildren(
     h("strong", {}, `${m.impact_speed.toFixed(1)} m/s`),
     h("span", {}, "임팩트 손목 속도" + (sp ? ` · 프로 참고 약 ${sp.value} m/s` : "")));
+  const pl = evalr.plane, pr = pl.ref;
+  $("plane").replaceChildren(
+    h("strong", {}, pl.value === null ? "–" : `${pl.value}°`),
+    h("span", {}, "스윙 면 기울기 (0° 수평 · 90° 수직)" + (pl.value === null ? " · 손목 궤적이 거의 직선이라 측정 불가"
+      : pr?.min === undefined ? " · 프로 기준 없음"
+      : ` · 프로 ${pr.min}~${pr.max}° ` + (pr.status === "ok" ? "✓" : `⚠ ${gap(pl.value, pr, "스윙 면 기울기")}`))));
 
   // 세 순간을 같은 축척·같은 바닥선으로 (카메라가 본 정면 투영)
   const frames = PHASES.map(ph => data.frames[m.phases[ph]]);
@@ -678,7 +702,8 @@ function renderCompare() {
       const st = r.ref?.status;
       const cls = st === "ok" ? "ok" : st === "low" || st === "high" ? "warn" : "";
       return h("td", { class: cls }, h("b", {}, `${r.value}°`),
-        r.ref ? h("span", { class: "r" }, icon(cls === "ok" ? "check" : "alert"), `프로 ${r.ref.min}~${r.ref.max}`) : null);
+        r.ref ? h("span", { class: "r" }, icon(cls === "ok" ? "check" : "alert"),
+          `프로 ${r.ref.min}~${r.ref.max}` + (cls === "warn" ? ` · ${gap(r.value, r.ref, metric)}` : "")) : null);
     }))));
   $("src").replaceChildren(...evalr.sources.map(s => h("li", {}, s)));
 }

@@ -93,9 +93,39 @@ export function analyze(pts, fps, hand = "R") {
     }])),
     chain_peaks: peaks,
     chain_ok: CHAIN.every((k, i) => !i || peaks[CHAIN[i - 1]] <= peaks[k]),
+    swing_plane: swingPlane(wrist.slice(phases.백스윙, phases.피니시 + 1)),
     speed,
     series: { 팔꿈치: elbow, 무릎: knee, "몸통 꼬임": twist }, // 웹 화면의 프레임별 수치용 (swing.py 에는 없음)
   };
+}
+
+// 3x3 대칭행렬의 고윳값·고유벡터 (야코비 회전). 반환: 고윳값 오름차순 [[값, 벡터], ...]
+function eigh3(A) {
+  const a = A.map(r => [...r]), v = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  for (let sweep = 0; sweep < 50; sweep++) {
+    if (Math.abs(a[0][1]) + Math.abs(a[0][2]) + Math.abs(a[1][2]) < 1e-15) break;
+    for (const [p, q] of [[0, 1], [0, 2], [1, 2]]) {
+      if (a[p][q] === 0) continue;
+      const th = (a[q][q] - a[p][p]) / (2 * a[p][q]);
+      const t = (th >= 0 ? 1 : -1) / (Math.abs(th) + Math.sqrt(th * th + 1));
+      const c = 1 / Math.sqrt(t * t + 1), s = t * c;
+      for (let k = 0; k < 3; k++) { const x = a[k][p], y = a[k][q]; a[k][p] = c * x - s * y; a[k][q] = s * x + c * y; }
+      for (let k = 0; k < 3; k++) { const x = a[p][k], y = a[q][k]; a[p][k] = c * x - s * y; a[q][k] = s * x + c * y; }
+      for (let k = 0; k < 3; k++) { const x = v[k][p], y = v[k][q]; v[k][p] = c * x - s * y; v[k][q] = s * x + c * y; }
+    }
+  }
+  return [0, 1, 2].map(i => [a[i][i], [v[0][i], v[1][i], v[2][i]]]).sort((x, y) => x[0] - y[0]);
+}
+
+// 백스윙~피니시 손목 궤적에 맞는 평면이 바닥과 이루는 각도(도). 0 = 수평 스윙, 90 = 수직 스윙. 거의 직선이면 null.
+function swingPlane(seg) {
+  if (seg.length < 3) return null;
+  const mean = [0, 1, 2].map(d => seg.reduce((s, p) => s + p[d], 0) / seg.length);
+  const C = [0, 1, 2].map(i => [0, 1, 2].map(j => seg.reduce((s, p) => s + (p[i] - mean[i]) * (p[j] - mean[j]), 0)));
+  const e = eigh3(C);
+  if (e[1][0] <= 1e-6 * Math.max(e[2][0], 1e-12)) return null;
+  // MediaPipe 는 y 가 세로축. 법선이 세로에 가까울수록 평면은 수평
+  return roundHalfEven(deg(Math.acos(Math.min(1, Math.abs(e[0][1][1])))));
 }
 
 // 프로 기준과 비교한 판정. ref: pro_ranges.json 형식, tips: tips.json
@@ -117,7 +147,11 @@ export function evaluate(m, ref = {}, tips = {}) {
       rows.push({ phase, metric, value, ref: r, tip });
     }
   }
-  return { speed, rows, chainTip: m.chain_ok ? undefined : tips["힘 전달"], sources: [...sources], score: score(m, ref) };
+  // 스윙 면 기울기는 구간이 아니라 스윙 전체에 하나
+  const pr = m.swing_plane == null ? null : judge(m.swing_plane, ref.swing_plane);
+  const plane = { value: m.swing_plane ?? null, ref: pr,
+    tip: pr && (pr.status === "low" || pr.status === "high") ? tips["스윙 면 기울기"]?.[pr.status] : undefined };
+  return { speed, rows, plane, chainTip: m.chain_ok ? undefined : tips["힘 전달"], sources: [...sources], score: score(m, ref) };
 }
 
 // 참고 점수 (swing.py score 와 같은 규칙). 항목마다 10점 만점이고, 종합은 기준이 있는 항목들의 평균.
@@ -132,6 +166,7 @@ export function score(m, ref = {}) {
       if (r.min !== undefined && m.angles[ph]?.[k] !== undefined) checks.push([m.angles[ph][k], r]);
     }
   }
+  if (m.swing_plane != null && ref.swing_plane?.min !== undefined) checks.push([m.swing_plane, ref.swing_plane]);
   if (checks.length) parts.push(["프로 범위", (10 * checks.filter(([v, r]) => r.min <= v && v <= r.max).length) / checks.length, 10]);
   const sp = ref.impact_speed;
   if (sp) parts.push(["손목 속도", 10 * Math.min(1, m.impact_speed / (sp.min ?? sp.value)), 10]);
@@ -150,7 +185,9 @@ export function report(m, fps, ref = {}, tips = {}) {
   for (const ph of Object.keys(m.angles)) {
     lines.push(`[${ph}] ` + e.rows.filter(r => r.phase === ph).map(r => `${r.metric} ${r.value}°` + mark(r.ref)).join(", "));
   }
+  lines.push("스윙 면 기울기: " + (e.plane.value === null ? "측정 불가 (손목 궤적이 거의 직선)" : `${e.plane.value}°` + mark(e.plane.ref)));
   const feedback = e.rows.filter(r => r.tip).map(r => `[${r.phase}] ${r.metric}: ${r.tip}`);
+  if (e.plane.tip) feedback.push(`[스윙] 스윙 면 기울기: ${e.plane.tip}`);
   if (e.chainTip) feedback.push(`[힘 전달] ${e.chainTip}`);
   const order = [...CHAIN].sort((x, y) => m.chain_peaks[x] - m.chain_peaks[y]).join(" → ");
   lines.push(`힘 전달 순서: ${order} ` + (m.chain_ok ? "✓ 정상" : "⚠ 순서가 어긋남 (팔로만 치는 스윙 의심)"));

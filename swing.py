@@ -114,8 +114,22 @@ def analyze(pts, fps, hand="R"):
                         "몸통 꼬임": round(float(twist[f]))} for ph, f in phases.items()},
         "chain_peaks": peaks,
         "chain_ok": sorted(CHAIN, key=lambda k: (peaks[k], CHAIN.index(k))) == list(CHAIN),
+        "swing_plane": swing_plane(wrist[phases["백스윙"]:phases["피니시"] + 1]),
         "speed": speed,
     }
+
+
+def swing_plane(seg):
+    """백스윙~피니시 손목 궤적에 맞는 평면이 바닥과 이루는 각도(도). 0 = 수평 스윙, 90 = 수직 스윙.
+    궤적이 거의 직선이면 평면이 정해지지 않아 None."""
+    if len(seg) < 3:
+        return None
+    x = seg - seg.mean(0)
+    vals, vecs = np.linalg.eigh(x.T @ x)  # 고윳값 오름차순, 가장 작은 쪽이 평면의 법선
+    if vals[1] <= 1e-6 * max(vals[2], 1e-12):
+        return None
+    # MediaPipe 는 y 가 세로축. 법선이 세로에 가까울수록 평면은 수평
+    return int(round(float(np.degrees(np.arccos(min(1.0, abs(vecs[1, 0])))))))
 
 
 def score(m, ref=None):
@@ -128,6 +142,8 @@ def score(m, ref=None):
     parts = [("힘 전달", 10 * sum(pk[a] <= pk[b] for a, b in zip(CHAIN, CHAIN[1:])) / 3, 10)]
     checks = [(m["angles"][ph][k], r) for ph, rs in ref.get("angles", {}).items() for k, r in rs.items()
               if "min" in r and k in m["angles"].get(ph, {})]
+    if m.get("swing_plane") is not None and "min" in ref.get("swing_plane", {}):
+        checks.append((m["swing_plane"], ref["swing_plane"]))
     if checks:
         parts.append(("프로 범위", 10 * sum(r["min"] <= v <= r["max"] for v, r in checks) / len(checks), 10))
     sp = ref.get("impact_speed")
@@ -160,6 +176,9 @@ def report(m, fps, ref=None):
     for ph, a in m["angles"].items():
         r = ref.get("angles", {}).get(ph, {})
         lines.append(f"[{ph}] " + ", ".join(f"{k} {v}°" + check(v, r.get(k), ph, k) for k, v in a.items()))
+    plane = m.get("swing_plane")
+    lines.append("스윙 면 기울기: " + (f"{plane}°" + check(plane, ref.get("swing_plane"), "스윙", "스윙 면 기울기")
+                                    if plane is not None else "측정 불가 (손목 궤적이 거의 직선)"))
     order = " → ".join(sorted(CHAIN, key=lambda k: m["chain_peaks"][k]))
     t = {k: (f - m["phases"]["임팩트"]) / fps * 1000 for k, f in m["chain_peaks"].items()}
     lines.append(f"힘 전달 순서: {order} " + ("✓ 정상" if m["chain_ok"] else "⚠ 순서가 어긋남 (팔로만 치는 스윙 의심)"))

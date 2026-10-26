@@ -425,12 +425,13 @@ if (/KAKAOTALK/i.test(navigator.userAgent)) window.openInChrome();
           <details><summary>프로 기준 출처</summary><ul id="src"></ul></details>
           <div class="actions" style="margin-top:20px">
             <button type="button" class="ball-btn" data-pick-video><svg class="icon"><use href="#i-upload"/></svg>다른 영상 분석</button>
-            <button type="button" class="ghost-btn" id="saveImage"><svg class="icon"><use href="#i-image"/></svg>이미지로 저장</button>
+            <button type="button" class="ghost-btn" id="saveImage"><svg class="icon"><use href="#i-image"/></svg><span>이미지로 저장</span></button>
+            <button type="button" class="ghost-btn" id="saveVideo"><svg class="icon"><use href="#i-play"/></svg><span>영상으로 저장</span></button>
             <button type="button" class="ghost-btn" id="save"><svg class="icon"><use href="#i-save"/></svg>결과 저장</button>
             <button type="button" class="text-btn" data-open-json style="margin-top:0"><svg class="icon"><use href="#i-file"/></svg>저장한 결과 열기</button>
           </div>
           <p class="inapp" id="saveNote" hidden>
-            <span>카카오톡 안에서는 결과 파일을 저장할 수 없어요. 크롬으로 열어서 다시 분석한 뒤 저장해 주세요.</span>
+            <span>카카오톡 안에서는 결과 파일과 영상을 저장할 수 없어요. 크롬으로 열어서 다시 분석한 뒤 저장해 주세요.</span>
             <button type="button" class="text-btn" data-open-external>크롬으로 열기</button>
           </p>
         </section>
@@ -484,7 +485,7 @@ const hand = () => document.querySelector("input[name=hand]:checked").value;
 
 // ---------- 3D 뷰어 ----------
 const view = $("view");
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); // 이미지 저장 때 3D 화면도 찍히게
 renderer.setClearColor(0x10325c);
 view.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
@@ -560,6 +561,11 @@ function drawOverlay() {
   }
   octx.setTransform(dpr, 0, 0, dpr, 0, 0);
   octx.clearRect(0, 0, w, hh);
+  paintOverlay(octx, w, hh);
+}
+
+// w x hh 영역에 영상이 contain 으로 그려졌다고 보고 그 위에 스켈레톤·궤적을 그린다 (화면과 영상 저장이 같이 쓴다)
+function paintOverlay(octx, w, hh) {
   if (!data?.frames2d || !data.hasVideo || !video.videoWidth) return;
   // object-fit: contain 으로 영상이 실제 그려진 영역에 맞춘다
   const s = Math.min(w / video.videoWidth, hh / video.videoHeight);
@@ -836,6 +842,7 @@ function load(d) {
   // 영상이 없으면(명령줄 JSON) 3D 로만 본다
   const vBtn = document.querySelector("button[data-layer=video]");
   vBtn.disabled = !d.hasVideo;
+  $("saveVideo").hidden = !d.hasVideo;
   if (!d.hasVideo) document.querySelector("button[data-layer='3d']").setAttribute("aria-pressed", "true");
   if (d.hasVideo && video.videoWidth) $("screen").style.setProperty("--ar", `${video.videoWidth} / ${video.videoHeight}`);
   $("meta").textContent = d.note ?? "";
@@ -980,109 +987,6 @@ document.querySelectorAll("[data-open-json]").forEach(b => b.onclick = () => $("
 $("vid").onchange = e => analyzeVideo(e.target.files[0]);
 $("json").onchange = e => openJson(e.target.files[0]);
 document.querySelectorAll("input[name=hand]").forEach(r => r.onchange = () => current && !busy && finish());
-// ---------- 결과 카드 이미지 (공유·보관용) ----------
-// 라이브러리 없이 캔버스에 직접 그린다. 1080x1500 세로 카드, 화면과 같은 탁구대 디자인.
-async function drawCard() {
-  await document.fonts.ready;
-  const W = 1080, H = 1500, M = 60, c = document.createElement("canvas");
-  c.width = W; c.height = H;
-  const g = c.getContext("2d");
-  const F = (w, s) => `${w} ${s}px "Pretendard Variable", Pretendard, system-ui, sans-serif`;
-  const C = { floor: "#0B2340", table: "#17457A", ink2: "#C9D8EC", ink3: "#9DB4D3", ball: "#F28C28", ok: "#7FD8A6", warn: "#FF9A8A" };
-  const text = (s, x, y, font, color = "#FFFFFF", align = "left") => { g.font = font; g.fillStyle = color; g.textAlign = align; g.fillText(s, x, y); };
-  const panel = (x, y, w, hh) => {
-    g.beginPath(); g.roundRect ? g.roundRect(x, y, w, hh, 10) : g.rect(x, y, w, hh);
-    g.fillStyle = C.table; g.fill(); g.lineWidth = 6; g.strokeStyle = "#FFFFFF"; g.stroke();
-  };
-  const line = (x1, y1, x2, y2, color, width) => { g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.strokeStyle = color; g.lineWidth = width; g.lineCap = "round"; g.stroke(); };
-  const wrap = (s, maxW, font) => { // 띄어쓰기 단위로 줄바꿈
-    g.font = font;
-    const out = [];
-    let cur = "";
-    for (const word of s.split(" ")) {
-      const next = cur ? `${cur} ${word}` : word;
-      if (g.measureText(next).width > maxW && cur) { out.push(cur); cur = word; } else cur = next;
-    }
-    return cur ? [...out, cur] : out;
-  };
-  g.fillStyle = C.floor; g.fillRect(0, 0, W, H);
-
-  // 머리줄
-  text("TTT", M, 100, F(900, 46));
-  text(`${new Date().toLocaleDateString("ko-KR")} · 탁구 스윙 분석`, W - M, 96, F(500, 26), C.ink2, "right");
-
-  // 점수
-  const { total, parts } = evalr.score;
-  panel(M, 140, W - 2 * M, 350);
-  text(total.toFixed(1), M + 44, 280, F(800, 120));
-  g.font = F(800, 120);
-  text("/ 10", M + 56 + g.measureText(total.toFixed(1)).width, 280, F(700, 40), C.ink2);
-  text("종합 점수 · 항목 평균 · 참고용", M + 44, 326, F(500, 26), C.ink2);
-  parts.forEach(([n, v, mx], i) => {
-    const y = 380 + i * 40, x0 = M + 230, x1 = W - M - 190, at = x0 + (x1 - x0) * (v / mx);
-    text(n, M + 44, y + 9, F(700, 26));
-    line(x0, y, x1, y, "rgba(255,255,255,.3)", 4);
-    line(x0, y, at, y, "#FFFFFF", 4);
-    g.beginPath(); g.arc(at, y, 13, 0, Math.PI * 2); g.fillStyle = C.ball; g.fill();
-    text(`${v.toFixed(1)}/${mx}`, W - M - 44, y + 9, F(800, 26), "#FFFFFF", "right");
-  });
-
-  // 세 순간 자세 (같은 축척)
-  const ph = data.metrics.phases, frames = PHASES.map(p => data.frames[ph[p]]);
-  const xs = frames.flatMap(fr => fr.slice(11).map(p => p[0])), ys = frames.flatMap(fr => fr.slice(11).map(p => p[1]));
-  const bx0 = Math.min(...xs), by0 = Math.min(...ys), bw = Math.max(...xs) - bx0, bh = Math.max(...ys) - by0;
-  const pw = (W - 2 * M - 2 * 24) / 3, py = 520, phh = 360;
-  PHASES.forEach((name, i) => {
-    const px = M + i * (pw + 24), fr = frames[i];
-    panel(px, py, pw, phh);
-    const s = Math.min((pw - 60) / bw, (phh - 90) / bh), ox = px + (pw - bw * s) / 2, oy = py + 24;
-    const Q = j => [ox + (fr[j][0] - bx0) * s, oy + (fr[j][1] - by0) * s];
-    for (const [a, b] of data.connections) if (a >= 11 && b >= 11) line(...Q(a), ...Q(b), "#FFFFFF", 6);
-    const head = Q(0);
-    g.beginPath(); g.arc(head[0], head[1], 14, 0, Math.PI * 2); g.fillStyle = "#FFFFFF"; g.fill();
-    const wr = Q(data.wrist_index);
-    g.beginPath(); g.arc(wr[0], wr[1], 11, 0, Math.PI * 2); g.fillStyle = C.ball; g.fill();
-    text(name, px + pw / 2, py + phh - 24, F(800, 28), "#FFFFFF", "center");
-  });
-
-  // 핵심 수치
-  const pl = evalr.plane;
-  text(`${data.metrics.impact_speed.toFixed(1)} m/s`, M, 960, F(800, 52));
-  text("임팩트 손목 속도", M, 996, F(500, 24), C.ink2);
-  text(pl.value === null ? "–" : `${pl.value}°`, W / 2, 960, F(800, 52));
-  text("스윙 면 기울기", W / 2, 996, F(500, 24), C.ink2);
-
-  // 구간별 각도 표
-  const cols = [M, M + 260, M + 500, M + 740];
-  ["항목", ...PHASES].forEach((t, i) => text(t, cols[i], 1056, F(600, 24), C.ink2));
-  [...new Set(evalr.rows.map(r => r.metric))].forEach((metric, k) => {
-    const y = 1104 + k * 50;
-    line(M, y - 36, W - M, y - 36, "rgba(255,255,255,.18)", 2);
-    text(metric, cols[0], y, F(700, 30));
-    PHASES.forEach((p, i) => {
-      const r = evalr.rows.find(x => x.phase === p && x.metric === metric), st = r.ref?.status;
-      text(`${r.value}°`, cols[i + 1], y, F(700, 30), st === "ok" ? C.ok : st === "low" || st === "high" ? C.warn : "#FFFFFF");
-    });
-  });
-
-  // 다음에 고칠 것 (최대 2개)
-  const fixes = [
-    ...evalr.rows.filter(r => r.tip).map(r => [`${r.phase} · ${r.metric}`, r.tip]),
-    ...(evalr.plane.tip ? [["스윙 면 기울기", evalr.plane.tip]] : []),
-    ...(evalr.chainTip ? [["힘 전달 순서", evalr.chainTip]] : []),
-  ].slice(0, 2);
-  text("다음 연습에서 고칠 것", M, 1290, F(800, 32));
-  let y = 1340;
-  if (!fixes.length) text("프로 기준을 벗어난 항목이 없어요.", M, y, F(500, 26), C.ink2);
-  for (const [label, tip] of fixes) {
-    text(label, M, y, F(700, 22), C.warn);
-    for (const ln of wrap(tip, W - 2 * M, F(600, 26)).slice(0, 2)) { y += 34; text(ln, M, y, F(600, 26)); }
-    y += 44;
-  }
-  text("hooni9807.github.io/ttt · 기준이 있는 항목만으로 계산한 참고 점수", W / 2, H - 28, F(500, 20), C.ink3, "center");
-  return new Promise(r => c.toBlob(r, "image/png"));
-}
-
 // 카카오톡 인앱 브라우저는 페이지가 만든 파일(blob) 다운로드를 막는다(JSON 은 "지원하지 않는 형식").
 // 외부 브라우저로 넘기는 카카오톡 전용 주소를 쓰고, 이미지는 길게 눌러 저장하도록 화면에 띄운다.
 const IN_KAKAO = /KAKAOTALK/i.test(navigator.userAgent);
@@ -1090,21 +994,128 @@ $("inapp").hidden = !IN_KAKAO; // 자동으로 크롬이 안 열렸을 때를 �
 document.querySelectorAll("[data-open-external]").forEach(b => b.onclick = () => window.openInChrome());
 $("sheetClose").onclick = () => { $("sheet").hidden = true; };
 
+// ---------- 저장: 결과 화면 전체 이미지, 스켈레톤을 입힌 영상 ----------
+// 웹페이지는 갤러리에 직접 쓸 수 없어서, 아이폰은 공유 창("이미지/비디오 저장" → 사진 앱),
+// 안드로이드는 다운로드(갤러리의 다운로드 앨범에 보임), PC 는 다운로드로 저장한다.
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+async function saveFile(blob, name) {
+  const file = new File([blob], name, { type: blob.type });
+  if (IS_IOS && navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === "AbortError") return; }
+  }
+  const a = h("a", { href: URL.createObjectURL(blob), download: name });
+  document.body.append(a); a.click(); a.remove();
+}
+const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+const busyBtn = (id, text) => { const b = $(id), old = b.lastChild.textContent; b.disabled = true; b.lastChild.textContent = text; return () => { b.disabled = false; b.lastChild.textContent = old; }; };
+
+// 결과 화면 전체를 한 장으로 (html2canvas). 영상은 지금 프레임을 그림으로 바꿔 찍는다.
+let h2c = null;
+const loadH2C = () => h2c ??= new Promise((ok, fail) => {
+  const sc = document.createElement("script");
+  sc.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+  sc.onload = () => ok(window.html2canvas); sc.onerror = fail;
+  document.head.append(sc);
+});
+async function capturePage() {
+  const html2canvas = await loadH2C();
+  renderer.render(scene, camera);
+  let still = null;
+  if (data.hasVideo && video.videoWidth) {
+    const c = document.createElement("canvas");
+    c.width = video.videoWidth; c.height = video.videoHeight;
+    c.getContext("2d").drawImage(video, 0, 0);
+    still = c.toDataURL("image/jpeg", 0.9);
+  }
+  const canvas = await html2canvas(document.querySelector(".wrap"), {
+    backgroundColor: "#0B2340", scale: Math.min(2, devicePixelRatio || 1), useCORS: true,
+    onclone: doc => {
+      const v = doc.querySelector("#vbox video");
+      if (v && still) { const img = doc.createElement("img"); img.src = still; img.style.cssText = "display:block;width:100%;height:100%;object-fit:contain"; v.replaceWith(img); }
+      // 화면 조작 버튼은 빼고 내용만. 접힌 출처 목록은 html2canvas 가 겹쳐 그려서 펼친 목록으로 바꾼다
+      doc.querySelectorAll(".chips, .inapp, .actions, #play, #rate").forEach(el => el.remove());
+      doc.querySelectorAll("#result details").forEach(dt => {
+        const box = doc.createElement("div");
+        box.className = "fine";
+        box.append(dt.querySelector("summary").textContent, dt.querySelector("ul"));
+        dt.replaceWith(box);
+      });
+    },
+  });
+  return new Promise(r => canvas.toBlob(r, "image/png"));
+}
+
 $("saveImage").onclick = async () => {
   if (!data) return;
-  const blob = await drawCard();
-  if (IN_KAKAO) {
-    $("sheetImg").src = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
-    $("sheet").hidden = false;
-    return;
-  }
-  const name = `ttt-swing-${new Date().toISOString().slice(0, 10)}.png`;
-  const file = new File([blob], name, { type: "image/png" });
-  // 폰에서는 공유 시트로 열어 사진 앱에 바로 저장하거나 카톡으로 보낼 수 있게
-  if (matchMedia("(pointer: coarse)").matches && navigator.canShare?.({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: "TTT 스윙 분석" }); return; } catch (e) { if (e.name === "AbortError") return; }
-  }
-  h("a", { href: URL.createObjectURL(blob), download: name }).click();
+  const done = busyBtn("saveImage", "이미지 만드는 중...");
+  try {
+    const blob = await capturePage();
+    if (IN_KAKAO) {
+      $("sheetImg").src = URL.createObjectURL(blob);
+      $("sheet").hidden = false;
+      return;
+    }
+    await saveFile(blob, `ttt-swing-${stamp()}.png`);
+  } catch (e) {
+    console.error(e);
+    alert("이미지를 만들지 못했어요. 잠시 뒤 다시 눌러 주세요.");
+  } finally { done(); }
+};
+
+// 스윙 구간(백스윙 0.5초 전 ~ 피니시 0.5초 뒤)을 지금 고른 재생 속도로 녹화한다. 0.25배면 4배 느린 슬로모션 영상.
+// 영상 / 스켈레톤 / 궤적 버튼 상태가 그대로 반영된다.
+async function recordVideo() {
+  const fps = data.fps, m = data.metrics.phases, pad = Math.round(0.5 * fps);
+  const a = Math.max(0, m["백스윙"] - pad), b = Math.min(data.frames.length - 1, m["피니시"] + pad);
+  const scale = Math.min(1, 1280 / Math.max(video.videoWidth, video.videoHeight));
+  const W = Math.round(video.videoWidth * scale / 2) * 2, H = Math.round(video.videoHeight * scale / 2) * 2;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  const type = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"].find(t => MediaRecorder.isTypeSupported(t));
+  const rec = new MediaRecorder(c.captureStream(30), { mimeType: type, videoBitsPerSecond: 6e6 });
+  const chunks = [];
+  rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+  const stopped = new Promise(r => { rec.onstop = r; });
+
+  const paint = () => {
+    g.fillStyle = "#061528"; g.fillRect(0, 0, W, H);
+    if (layerOn("video")) g.drawImage(video, 0, 0, W, H);
+    show(Math.min(Math.floor(video.currentTime * fps), data.frames.length - 1));
+    paintOverlay(g, W, H);
+  };
+  video.pause();
+  await seek(video, (a + 0.5) / fps);
+  paint();
+  rec.start(250);
+  await video.play();
+  await new Promise(done => {
+    const step = () => {
+      paint();
+      $("saveVideo").lastChild.textContent = `녹화 중 ${Math.round(((video.currentTime * fps - a) / (b - a)) * 100)}%`;
+      if (video.currentTime * fps >= b || video.paused) return done();
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+  video.pause();
+  rec.stop();
+  await stopped;
+  return new Blob(chunks, { type: type.split(";")[0] });
+}
+
+$("saveVideo").onclick = async () => {
+  if (!data?.hasVideo) return;
+  if (IN_KAKAO) { $("saveNote").hidden = false; return; }
+  if (!window.MediaRecorder) { alert("이 브라우저는 영상 저장을 지원하지 않아요. 크롬이나 사파리 최신 버전에서 해 주세요."); return; }
+  const done = busyBtn("saveVideo", "녹화 준비 중...");
+  try {
+    const blob = await recordVideo();
+    await saveFile(blob, `ttt-swing-${stamp()}.${blob.type.includes("mp4") ? "mp4" : "webm"}`);
+  } catch (e) {
+    console.error(e);
+    alert("영상을 만들지 못했어요. 잠시 뒤 다시 눌러 주세요.");
+  } finally { done(); }
 };
 
 // ---------- 데이터 보태기 (동의한 경우에만, 관절 좌표만 Firebase 로) ----------

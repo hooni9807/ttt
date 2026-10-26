@@ -17,5 +17,18 @@ service cloud.firestore {
                         || (request.resource.data.frames2d is string && request.resource.data.frames2d.size() < 400000));
       allow read, update, delete: if false;
     }
+
+    // 내 기록: Google 로그인한 본인만 읽고, 만들고, 지울 수 있다. 다른 사람 기록은 볼 수 없다.
+    match /users/{uid}/swings/{id} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid
+                    && request.resource.data.keys().hasOnly(['createdAt', 'fps', 'hand', 'score', 'impact_speed', 'frames'])
+                    && request.resource.data.keys().hasAll(['createdAt', 'fps', 'hand', 'frames'])
+                    && request.resource.data.createdAt == request.time
+                    && request.resource.data.fps is number && request.resource.data.fps > 0 && request.resource.data.fps <= 480
+                    && request.resource.data.hand in ['L', 'R']
+                    && request.resource.data.frames is string && request.resource.data.frames.size() < 900000;
+      allow update: if false;
+    }
   }
 }

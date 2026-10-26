@@ -56,6 +56,18 @@ assert "프로 5~7 ✓" in text and "팔꿈치 130° (프로 100~120 ⚠)" in te
 
 assert "피드백:" in text and "팔이 너무 펴져 있어요" in text, text
 
+# 점수: 힘 전달 순서 정상(4/4), 범위 2개 중 1개 안(2/4), 손목 속도 기준의 절반(1/2) → 7/10
+from swing import score
+
+sm = {"chain_peaks": {"골반": 1, "어깨": 2, "팔꿈치": 3, "손목": 4}, "impact_speed": 2.75,
+      "angles": {"백스윙": {"무릎": 140}, "피니시": {"무릎": 170}}}
+sref = {"impact_speed": {"value": 5.5, "source": "t"},
+        "angles": {"백스윙": {"무릎": {"min": 130, "max": 148, "source": "t"}}, "피니시": {"무릎": {"min": 115, "max": 160, "source": "t"}}}}
+assert score(sm, sref) == (7.0, [("힘 전달", 4.0, 4), ("프로 범위", 2.0, 4), ("손목 속도", 1.0, 2)]), score(sm, sref)
+# 순서가 하나 어긋나면 힘 전달 2.7/4, 기준이 없으면 그 항목은 빼고 10점 환산
+sm["chain_peaks"]["팔꿈치"] = 5
+assert score(sm, {}) == (6.8, [("힘 전달", 2.7, 4)]), score(sm, {})
+
 # 웹(analyze.js)이 Python 과 같은 결과를 내는지 대조 (node 가 있을 때)
 import json, shutil, subprocess, tempfile
 from pathlib import Path

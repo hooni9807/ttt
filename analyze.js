@@ -117,13 +117,36 @@ export function evaluate(m, ref = {}, tips = {}) {
       rows.push({ phase, metric, value, ref: r, tip });
     }
   }
-  return { speed, rows, chainTip: m.chain_ok ? undefined : tips["힘 전달"], sources: [...sources] };
+  return { speed, rows, chainTip: m.chain_ok ? undefined : tips["힘 전달"], sources: [...sources], score: score(m, ref) };
+}
+
+// 10점 만점 참고 점수 (swing.py score 와 같은 규칙). 기준이 있는 항목만 쓰고, 빠진 항목은 만점에서 뺀 뒤 10점으로 환산.
+// 힘 전달 4점(3구간 중 순서가 맞는 비율), 프로 범위 4점(범위 안 항목 비율), 손목 속도 2점(프로 기준 대비, 넘으면 만점).
+export function score(m, ref = {}) {
+  const r1 = x => roundHalfEven(x * 10) / 10;
+  const pk = m.chain_peaks;
+  const parts = [["힘 전달", (4 * CHAIN.slice(1).filter((k, i) => pk[CHAIN[i]] <= pk[k]).length) / 3, 4]];
+  const checks = [];
+  for (const [ph, rs] of Object.entries(ref.angles ?? {})) {
+    for (const [k, r] of Object.entries(rs)) {
+      if (r.min !== undefined && m.angles[ph]?.[k] !== undefined) checks.push([m.angles[ph][k], r]);
+    }
+  }
+  if (checks.length) parts.push(["프로 범위", (4 * checks.filter(([v, r]) => r.min <= v && v <= r.max).length) / checks.length, 4]);
+  const sp = ref.impact_speed;
+  if (sp) parts.push(["손목 속도", 2 * Math.min(1, m.impact_speed / (sp.min ?? sp.value)), 2]);
+  const rounded = parts.map(([n, g, mx]) => [n, r1(g), mx]);
+  const total = r1((rounded.reduce((s, p) => s + p[1], 0) / rounded.reduce((s, p) => s + p[2], 0)) * 10);
+  return { total, parts: rounded };
 }
 
 export function report(m, fps, ref = {}, tips = {}) {
   const e = evaluate(m, ref, tips);
   const mark = r => (!r ? "" : r.status === "ref" ? ` (프로 참고 ${r.value})` : ` (프로 ${r.min}~${r.max} ${r.status === "ok" ? "✓" : "⚠"})`);
-  const lines = [`임팩트 손목 속도: ${m.impact_speed.toFixed(1)} m/s (프레임 ${m.phases.임팩트})` + mark(e.speed)];
+  const lines = [
+    `스윙 점수: ${e.score.total.toFixed(1)} / 10 (` + e.score.parts.map(([n, g, mx]) => `${n} ${g.toFixed(1)}/${mx}`).join(", ") + ")",
+    `임팩트 손목 속도: ${m.impact_speed.toFixed(1)} m/s (프레임 ${m.phases.임팩트})` + mark(e.speed),
+  ];
   for (const ph of Object.keys(m.angles)) {
     lines.push(`[${ph}] ` + e.rows.filter(r => r.phase === ph).map(r => `${r.metric} ${r.value}°` + mark(r.ref)).join(", "));
   }

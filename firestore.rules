@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// TTT 데이터 기여: 브라우저는 swings 에 "새 문서 쓰기"만 할 수 있고, 읽기·수정·삭제는 막는다.
+// 모인 데이터는 Firebase 콘솔이나 관리자 SDK(서버)로만 본다.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /swings/{id} {
+      allow create: if request.resource.data.keys().hasOnly(
+                         ['app', 'createdAt', 'consent', 'fps', 'hand', 'window', 'metrics', 'frames', 'frames2d'])
+                    && request.resource.data.keys().hasAll(['app', 'createdAt', 'consent', 'fps', 'hand', 'window', 'metrics', 'frames'])
+                    && request.resource.data.consent == true
+                    && request.resource.data.createdAt == request.time
+                    && request.resource.data.fps is number && request.resource.data.fps > 0 && request.resource.data.fps <= 480
+                    && request.resource.data.hand in ['L', 'R']
+                    && request.resource.data.frames is string && request.resource.data.frames.size() < 600000
+                    && (!('frames2d' in request.resource.data)
+                        || (request.resource.data.frames2d is string && request.resource.data.frames2d.size() < 400000));
+      allow read, update, delete: if false;
+    }
+  }
+}

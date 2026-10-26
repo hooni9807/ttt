@@ -60,3 +60,17 @@ uv run swing.py 내스윙.mp4 --ref my_pro.json
 - 카메라 한 대로 추정한 깊이(z)는 오차가 큽니다. 더 정확한 모델로는 WHAM, 4D-Humans 등이 있습니다.
 - 라켓과 공은 추적하지 않습니다. 추적하려면 객체 검출 모델(YOLO 등)을 따로 학습시켜야 합니다.
 - AI 코치는 아직 없습니다. 리포트를 LLM(Claude API)에 넣어 교정 문구를 생성하는 방식으로 붙일 수 있습니다.
+
+## 데이터 보태기 (Firebase)
+
+결과 화면의 "분석 개선에 데이터 보태기"는 사용자가 동의하고 직접 보낼 때만 **스윙 구간의 관절 좌표와 분석 수치**를 Firebase Cloud Firestore 에 저장합니다. 영상·사진·식별 정보는 보내지 않습니다. 안내문은 `privacy.html` 입니다.
+
+`firebase-config.js` 가 `null` 이면 이 기능은 화면에 나오지 않습니다. 켜는 방법:
+
+1. [Firebase 콘솔](https://console.firebase.google.com)에서 프로젝트를 만들고, **웹 앱**을 추가합니다.
+2. **Firestore Database** 를 만듭니다. 위치는 `asia-northeast3 (서울)`, 모드는 **프로덕션 모드**로 고릅니다. (`privacy.html` 에 서울 리전이라고 적혀 있습니다. 다른 곳을 고르면 안내문도 고쳐야 합니다.)
+3. Firestore → **규칙** 탭에 `firestore.rules` 내용을 붙여 넣고 게시합니다. 브라우저는 새 문서 쓰기만 할 수 있고 읽기·수정·삭제는 막힙니다.
+4. 프로젝트 설정 → 내 앱(웹)의 `firebaseConfig` 값을 `firebase-config.js` 의 `null` 자리에 붙여 넣고 push 합니다.
+
+저장 형식(컬렉션 `swings`, 문서 1개 = 스윙 1개): `fps`, `hand`, `window`(원본 프레임 중 저장한 구간), `metrics`(분석 결과), `frames`(3D 좌표 JSON 문자열), `frames2d`(영상 위 2D 좌표 JSON 문자열), `createdAt`, `consent`, `app`.
+모인 데이터는 Firebase 콘솔이나 서버용 관리자 SDK 로 내려받습니다.

@@ -6,6 +6,25 @@
 <meta name="theme-color" content="#0B2340">
 <title>TTT · 탁구 스윙 3D 분석</title>
 <meta name="description" content="폰으로 찍은 탁구 스윙 영상 하나로 3D 자세를 복원하고, 프로 기준과 비교해 다음 연습에서 고칠 점을 알려 드립니다. 영상은 기기 밖으로 나가지 않습니다.">
+<script>
+// 카카오톡 인앱 브라우저는 파일 저장 등이 막혀 있어서, 열리자마자 크롬으로 넘긴다.
+// 안드로이드: 크롬을 지정한 intent 주소. 아이폰: 크롬 전용 주소(googlechromes://).
+// 크롬이 없어 넘어가지 못하면(1.5초 뒤에도 이 화면이면) 카카오톡의 "기본 브라우저로 열기"로 대신 연다.
+window.openInChrome = () => {
+  const url = location.href, bare = url.replace(/^https?:\/\//, "");
+  const fallback = "kakaotalk://web/openExternal?url=" + encodeURIComponent(url);
+  const target = /Android/i.test(navigator.userAgent)
+    ? "intent://" + bare + "#Intent;scheme=https;package=com.android.chrome;end"
+    : "googlechromes://" + bare;
+  window.__chromeTarget = target; // 테스트용 기록
+  const timer = setTimeout(() => { location.href = fallback; }, 1500);
+  const left = () => clearTimeout(timer); // 크롬으로 넘어가 화면이 가려지면 대체 경로는 취소
+  document.addEventListener("visibilitychange", left, { once: true });
+  window.addEventListener("pagehide", left, { once: true });
+  location.href = target;
+};
+if (/KAKAOTALK/i.test(navigator.userAgent)) window.openInChrome();
+</script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
   :root {
@@ -81,6 +100,12 @@
   .text-btn { display: inline-flex; gap: 8px; align-items: center; margin-top: 18px; padding: 8px 0; background: none; border: 0; color: var(--ink-2); font-size: 14px; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: rgba(255,255,255,.4); }
   .text-btn:hover { color: var(--ink); }
   .reopen { padding: 8px 4px 32px; }
+  .contribute .sub { max-width: 46em; }
+  .agree { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 16px; font-size: 15px; cursor: pointer; }
+  .agree input { width: 22px; height: 22px; margin: 1px 0 0; flex: none; accent-color: var(--ball); }
+  .agree a, .contribute a { color: var(--ink); text-underline-offset: 4px; }
+  .ghost-btn:disabled { opacity: .4; cursor: default; }
+  #sendStatus { font-size: 14px; color: var(--ink-2); }
   /* 카카오톡 인앱 브라우저 안내 */
   .inapp { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; margin: 12px 0 0; padding: 12px 16px; border: 2px solid var(--ball); border-radius: 12px; font-size: 14px; }
   .inapp .text-btn { margin: 0; color: var(--ink); font-weight: 700; }
@@ -253,8 +278,8 @@
 
 <div class="wrap">
   <p class="inapp" id="inapp" hidden>
-    <span>카카오톡 안에서 열렸어요. 결과 저장은 크롬·사파리 같은 외부 브라우저에서 잘 돼요.</span>
-    <button type="button" class="text-btn" data-open-external>외부 브라우저로 열기</button>
+    <span>카카오톡 안에서 열렸어요. 크롬이 자동으로 열리지 않으면 아래 버튼을 눌러 주세요.</span>
+    <button type="button" class="text-btn" data-open-external>크롬으로 열기</button>
   </p>
   <header class="bar">
     <a class="mark" href="./" aria-label="TTT 처음 화면">TTT</a>
@@ -354,6 +379,15 @@
           <p class="sub">백스윙 끝부터 임팩트까지, 각 부위가 가장 빨라진 순간을 실제 시간 비율로 그렸어요.</p>
           <div class="chain" id="chain"></div>
         </section>
+        <section class="wide contribute" id="contribute" hidden aria-labelledby="cTitle">
+          <h2 id="cTitle">분석 개선에 데이터 보태기 (선택)</h2>
+          <p class="sub">이 스윙의 <b>관절 좌표와 분석 수치</b>만 보내요. 영상·사진·이름 같은 정보는 보내지 않고, 누가 보냈는지도 남지 않아요. 모인 데이터는 프로 기준과 분석 정확도를 개선하는 데만 써요. 보내지 않아도 모든 기능을 그대로 쓸 수 있어요.</p>
+          <label class="agree"><input type="checkbox" id="agree"><span>만 14세 이상이며, <a href="privacy.html" target="_blank" rel="noopener">데이터 수집·이용 안내</a>를 읽고 동의해요</span></label>
+          <div class="actions">
+            <button type="button" class="ghost-btn" id="send" disabled>이 스윙 데이터 보내기</button>
+            <span id="sendStatus" role="status"></span>
+          </div>
+        </section>
         <section class="wide">
           <details><summary>프로 기준 출처</summary><ul id="src"></ul></details>
           <div class="actions" style="margin-top:20px">
@@ -363,8 +397,8 @@
             <button type="button" class="text-btn" data-open-json style="margin-top:0"><svg class="icon"><use href="#i-file"/></svg>저장한 결과 열기</button>
           </div>
           <p class="inapp" id="saveNote" hidden>
-            <span>카카오톡 안에서는 결과 파일을 저장할 수 없어요. 외부 브라우저로 열어서 다시 분석한 뒤 저장해 주세요.</span>
-            <button type="button" class="text-btn" data-open-external>외부 브라우저로 열기</button>
+            <span>카카오톡 안에서는 결과 파일을 저장할 수 없어요. 크롬으로 열어서 다시 분석한 뒤 저장해 주세요.</span>
+            <button type="button" class="text-btn" data-open-external>크롬으로 열기</button>
           </p>
         </section>
       </div>
@@ -385,6 +419,7 @@
 <script type="module">
 import { FilesetResolver, PoseLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/vision_bundle.mjs";
 import { CHAIN, PHASES, analyze, evaluate, report, roundHalfEven, smooth, wristIndex } from "./analyze.js";
+import { firebaseConfig } from "./firebase-config.js";
 
 const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm";
 // ponytail: 브라우저 속도 때문에 full 모델, 정확도가 아쉬우면 heavy 로 교체
@@ -778,6 +813,7 @@ function load(d) {
   renderFeedback();
   renderCompare();
   renderChain();
+  resetContribute();
   go(d.metrics.phases["임팩트"]);
 }
 
@@ -1015,9 +1051,8 @@ async function drawCard() {
 // 카카오톡 인앱 브라우저는 페이지가 만든 파일(blob) 다운로드를 막는다(JSON 은 "지원하지 않는 형식").
 // 외부 브라우저로 넘기는 카카오톡 전용 주소를 쓰고, 이미지는 길게 눌러 저장하도록 화면에 띄운다.
 const IN_KAKAO = /KAKAOTALK/i.test(navigator.userAgent);
-const openExternal = () => { location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(location.href)}`; };
-$("inapp").hidden = !IN_KAKAO;
-document.querySelectorAll("[data-open-external]").forEach(b => b.onclick = openExternal);
+$("inapp").hidden = !IN_KAKAO; // 자동으로 크롬이 안 열렸을 때를 위한 수동 버튼
+document.querySelectorAll("[data-open-external]").forEach(b => b.onclick = () => window.openInChrome());
 $("sheetClose").onclick = () => { $("sheet").hidden = true; };
 
 $("saveImage").onclick = async () => {
@@ -1035,6 +1070,47 @@ $("saveImage").onclick = async () => {
     try { await navigator.share({ files: [file], title: "TTT 스윙 분석" }); return; } catch (e) { if (e.name === "AbortError") return; }
   }
   h("a", { href: URL.createObjectURL(blob), download: name }).click();
+};
+
+// ---------- 데이터 보태기 (동의한 경우에만, 관절 좌표만 Firebase 로) ----------
+// firebase-config.js 가 비어 있거나, 영상을 직접 분석한 결과가 아니면(JSON 열기) 보이지 않는다.
+const FIREBASE = "https://www.gstatic.com/firebasejs/10.14.1/";
+let sentFor = null; // 이미 보낸 분석(손잡이만 바꿔 다시 보내는 것 방지)
+function resetContribute() {
+  $("contribute").hidden = !(firebaseConfig && data?.hasVideo);
+  if (sentFor === current) return;
+  $("agree").checked = false;
+  $("send").disabled = true;
+  $("sendStatus").textContent = "";
+}
+// 스윙 구간(백스윙 0.3초 전 ~ 피니시 0.3초 뒤)만, 좌표는 반올림해 문자열로 (Firestore 는 배열 속 배열을 못 담는다)
+function contributionPayload() {
+  const m = data.metrics, fps = data.fps, pad = Math.round(0.3 * fps);
+  const a = Math.max(0, m.phases["백스윙"] - pad), b = Math.min(data.frames.length - 1, m.phases["피니시"] + pad);
+  const r = (x, d) => Math.round(x * d) / d;
+  const out = {
+    app: "ttt-web-1", consent: true, fps, hand: data.wrist_index === wristIndex("L") ? "L" : "R",
+    window: { start: a, end: b }, metrics: m,
+    frames: JSON.stringify(data.frames.slice(a, b + 1).map(f => f.map(p => p.map(x => r(x, 1000))))),
+  };
+  if (data.frames2d) out.frames2d = JSON.stringify(data.frames2d.slice(a, b + 1).map(f => f.map(([x, y]) => [r(x, 10000), r(y, 10000)])));
+  return out;
+}
+$("agree").onchange = () => { $("send").disabled = !$("agree").checked || sentFor === current; };
+$("send").onclick = async () => {
+  $("send").disabled = true;
+  $("sendStatus").textContent = "보내는 중...";
+  try {
+    const [{ initializeApp, getApps }, fs] = await Promise.all([import(`${FIREBASE}firebase-app.js`), import(`${FIREBASE}firebase-firestore.js`)]);
+    const app = getApps()[0] ?? initializeApp(firebaseConfig);
+    await fs.addDoc(fs.collection(fs.getFirestore(app), "swings"), { ...contributionPayload(), createdAt: fs.serverTimestamp() });
+    sentFor = current;
+    $("sendStatus").textContent = "보냈어요. 고마워요!";
+  } catch (e) {
+    console.error(e);
+    $("sendStatus").textContent = "보내지 못했어요. 잠시 뒤 다시 눌러 주세요.";
+    $("send").disabled = false;
+  }
 };
 
 $("save").onclick = () => {

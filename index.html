@@ -257,7 +257,7 @@
         <ul class="tips">
           <li><svg class="icon"><use href="#i-phone"/></svg>폰을 세워 고정하고 몸 전체가 나오게</li>
           <li><svg class="icon"><use href="#i-gauge"/></svg>60fps 이상, 슬로모션이면 더 정확해요</li>
-          <li><svg class="icon"><use href="#i-once"/></svg>영상 하나에 스윙 한 번, 15초 이내</li>
+          <li><svg class="icon"><use href="#i-once"/></svg>영상은 최대 15초까지만 분석돼요. 스윙 한 번, 2~5초면 충분해요</li>
         </ul>
         <button type="button" class="text-btn" data-open-json><svg class="icon"><use href="#i-file"/></svg>명령줄에서 만든 분석 JSON 열기</button>
       </div>
@@ -679,7 +679,7 @@ async function analyzeVideo(file) {
     setStep("스윙 계산 중", "", 1);
     const pts = smooth(raw, fps);
     current = { pts, fps, hasVideo: true,
-      note: `${fps}fps · ${pts.length}프레임` + (video.duration > MAX_SEC ? ` · 앞 ${MAX_SEC}초만` : "") };
+      note: `${fps}fps · ${pts.length}프레임` + (video.duration > MAX_SEC ? ` · 최대 ${MAX_SEC}초라 앞부분만 분석` : "") };
     finish();
   } catch (err) {
     showError(err.message);

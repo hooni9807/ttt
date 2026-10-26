@@ -1,7 +1,7 @@
 """탁구 스윙 영상 → 3D 자세 → 스윙 수치.
 
 사용법: uv run swing.py 영상.mp4 [--left] [--ref 프로기준.json]
-결과: 콘솔 리포트 + 영상.json (웹 페이지의 "분석 JSON 열기"로 3D 보기)
+결과: 콘솔 리포트 + 영상.json (웹 페이지의 "저장한 결과 열기"로 3D 보기)
 """
 import argparse
 import json
@@ -217,7 +217,7 @@ def main():
         "frames": np.round(pts, 3).tolist(), "speed": np.round(speed, 2).tolist(),
         "metrics": m, "report": text,
     }, ensure_ascii=False))
-    print(f"\n저장: {out}  (웹 페이지의 '분석 JSON 열기'로 3D 보기)")
+    print(f"\n저장: {out}  (웹 페이지의 '저장한 결과 열기'로 3D 보기)")
 
 
 if __name__ == "__main__":

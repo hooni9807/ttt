@@ -23,7 +23,7 @@ uv run swing.py 내스윙.mp4 --left     # 왼손잡이
 uv run swing.py 내스윙.mp4 --ref my_pro.json      # 직접 만든 프로 범위와 비교
 ```
 
-실행하면 리포트와 피드백을 출력하고 `내스윙.json`을 저장합니다. 웹 페이지의 "분석 JSON 열기"로 이 파일을 열면 3D로 돌려 볼 수 있습니다.
+실행하면 리포트와 피드백을 출력하고 `내스윙.json`을 저장합니다. 웹 페이지 첫 화면 아래의 "저장한 결과 열기"로 이 파일을 열면 3D로 돌려 볼 수 있습니다.
 
 테스트: `uv run test_swing.py` (node 가 있으면 웹용 `analyze.js` 결과도 Python 과 대조합니다)
 

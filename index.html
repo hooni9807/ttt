@@ -100,7 +100,10 @@
   .stage { display: grid; grid-template-columns: 1fr; }
   .stage::before, .stage::after { display: none; }
   .views { position: relative; display: grid; grid-template-columns: 1fr; }
-  #view { height: min(62vh, 560px); min-height: 340px; cursor: grab; touch-action: none; }
+  #view { position: relative; height: min(62vh, 560px); min-height: 340px; cursor: grab; touch-action: none; }
+  .cams { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 6px; z-index: 1; }
+  .cams button { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 2px solid var(--line); background: rgba(11, 35, 64, .7); font-size: 13px; font-weight: 700; cursor: pointer; }
+  .cams button[aria-pressed=true] { background: var(--line); color: var(--floor); }
   #view:active { cursor: grabbing; }
   #view canvas { display: block; }
   .views video {
@@ -108,7 +111,6 @@
     object-fit: cover; border: 2px solid var(--line); border-radius: 6px; background: #061528;
   }
   .stage.no-video .views video { display: none; }
-  .hint { position: absolute; right: 14px; bottom: 12px; font-size: 12px; color: var(--ink-3); pointer-events: none; }
   .meta { position: absolute; right: 14px; top: 12px; font-size: 12px; color: var(--ink-3); text-align: right; }
 
   .controls { display: flex; align-items: center; gap: 10px; padding: 14px 16px 6px; }
@@ -267,9 +269,14 @@
       <div class="table stage" id="stage">
         <div class="views">
           <div id="videoSlot" style="display:contents"></div>
-          <div id="view" aria-label="3D 스윙. 드래그로 돌리고 두 손가락이나 휠로 확대합니다." role="img"></div>
+          <div id="view" aria-label="3D 스윙. 드래그로 돌리고 두 손가락이나 휠로 확대합니다.">
+            <div class="cams" role="group" aria-label="보는 방향">
+              <button type="button" data-cam="front" aria-pressed="true">영상 시점</button>
+              <button type="button" data-cam="side" aria-pressed="false">옆</button>
+              <button type="button" data-cam="top" aria-pressed="false">위</button>
+            </div>
+          </div>
           <p class="meta" id="meta"></p>
-          <p class="hint">드래그로 돌려 보세요</p>
         </div>
         <div class="net"></div>
         <div class="controls">
@@ -366,111 +373,137 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(42, 1, 0.01, 100);
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-const bones = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xffffff }));
-const joints = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color: 0xffffff, size: 0.035 }));
-const marker = new THREE.Mesh(new THREE.SphereGeometry(0.035, 24, 16), new THREE.MeshBasicMaterial({ color: 0xf28c28 }));
-const head = new THREE.Mesh(new THREE.SphereGeometry(0.065, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-bones.frustumCulled = joints.frustumCulled = false;
-scene.add(bones, joints, marker, head);
-let floor = null, trail = null;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x0b2340, 0.85));
+const sun = new THREE.DirectionalLight(0xffffff, 0.75);
+sun.position.set(1, 3, 2);
+scene.add(sun);
+const marker = new THREE.Mesh(new THREE.SphereGeometry(0.05, 24, 16), new THREE.MeshBasicMaterial({ color: 0xf28c28 }));
+scene.add(marker);
+const body = new THREE.Group();
+scene.add(body);
+let floor = null, trailFull = null, trailNow = null, trailRange = null;
+
+// 몸: 두꺼운 뼈(원기둥) + 관절(구). WebGL 선은 굵기가 1px 고정이라 메시로 그린다.
+const TRUNK_LEGS = [[11, 12], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28],
+  [27, 29], [29, 31], [27, 31], [28, 30], [30, 32], [28, 32]];
+const ARM = { L: [[11, 13], [13, 15], [15, 19]], R: [[12, 14], [14, 16], [16, 20]] };
+const JOINTS = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+const matBody = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.55 });
+const matHit = new THREE.MeshStandardMaterial({ color: 0xffb877, roughness: 0.5 }); // 치는 팔
+const unitBone = new THREE.CylinderGeometry(1, 1, 1, 14);
+const unitBall = new THREE.SphereGeometry(1, 20, 14);
+const SLOW = new THREE.Color(0x9cc2ee), FAST = new THREE.Color(0xf28c28);
+let skel = [];
+const UP = new THREE.Vector3(0, 1, 0), va = new THREE.Vector3(), vb = new THREE.Vector3(), dir = new THREE.Vector3();
 
 let data = null, evalr = null, current = null, frame = 0, playing = false, last = 0, busy = false;
 // MediaPipe 좌표는 y가 아래, z가 카메라 쪽이라 뒤집어서 그린다
 const P = (f, j) => { const [x, y, z] = data.frames[f][j]; return [x, -y, -z]; };
+const mid = (a, b) => a.map((v, i) => (v + b[i]) / 2);
+// "sh" = 어깨 가운데, "hd" = 머리(두 귀 가운데)
+const pt = (f, j) => (j === "sh" ? mid(P(f, 11), P(f, 12)) : j === "hd" ? mid(P(f, 7), P(f, 8)) : P(f, j));
 
-// 경기장: 바닥 + 선수 앞에 놓인 규격 탁구대(2.74 x 1.525, 높이 0.76, 네트 0.1525).
-// WebGL 선은 굵기가 1px 고정이라 흰 선은 얇은 판으로 그린다.
-// ponytail: 선수가 보는 방향은 "골반선에 수직, 스윙이 나가는 쪽"으로 추정. 카메라 한 대라 틀릴 수 있음.
-function buildCourt(floorY, hip, facing) {
-  const g = new THREE.Group(), W = 1.525, Lz = 2.74, H = 0.76, edge = 0.03;
-  const white = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshBasicMaterial({ color: 0x0b2340 }));
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.set(hip[0], floorY, hip[2]);
-  g.add(ground);
-
-  const table = new THREE.Group();
-  const top = new THREE.Mesh(new THREE.BoxGeometry(W, 0.03, Lz), new THREE.MeshBasicMaterial({ color: 0x17457a }));
-  top.position.y = -0.015;
-  table.add(top);
-  const strip = (w, l, x, z) => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), white);
-    m.rotation.x = -Math.PI / 2;
-    m.position.set(x, 0.001, z);
-    table.add(m);
-  };
-  strip(W, edge, 0, -Lz / 2 + edge / 2);
-  strip(W, edge, 0, Lz / 2 - edge / 2);
-  strip(edge, Lz, -W / 2 + edge / 2, 0);
-  strip(edge, Lz, W / 2 - edge / 2, 0);
-  strip(0.012, Lz, 0, 0); // 센터라인
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W + 0.3, 0.1525),
-    new THREE.MeshBasicMaterial({ color: 0x0b2340, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
-  mesh.position.y = 0.076;
-  const tape = new THREE.Mesh(new THREE.PlaneGeometry(W + 0.3, 0.028), white);
-  tape.position.set(0, 0.1525 - 0.014, 0.003);
-  table.add(mesh, tape);
-  // 테이블의 +z 가 선수가 보는 방향, 가까운 엔드라인이 골반 앞 0.45m
-  table.rotation.y = Math.atan2(facing[0], facing[1]);
-  const d = 0.45 + Lz / 2;
-  table.position.set(hip[0] + facing[0] * d, floorY + H, hip[2] + facing[1] * d);
-  g.add(table);
-  return g;
+// 뼈대: 치는 팔은 따뜻한 색, 나머지는 흰색
+function buildBody() {
+  body.clear();
+  skel = [];
+  const hd = data.wrist_index === wristIndex("L") ? "L" : "R", other = hd === "L" ? "R" : "L";
+  const hitJoints = new Set(ARM[hd].flat());
+  const bone = (a, b, r, mat) => { const m = new THREE.Mesh(unitBone, mat); body.add(m); skel.push({ m, a, b, r }); };
+  const ball = (j, r, mat) => { const m = new THREE.Mesh(unitBall, mat); m.scale.setScalar(r); body.add(m); skel.push({ m, j }); };
+  TRUNK_LEGS.forEach(([a, b]) => bone(a, b, 0.032, matBody));
+  ARM[other].forEach(([a, b]) => bone(a, b, 0.027, matBody));
+  ARM[hd].forEach(([a, b]) => bone(a, b, 0.033, matHit));
+  bone("sh", "hd", 0.03, matBody);
+  JOINTS.forEach(j => ball(j, 0.042, hitJoints.has(j) ? matHit : matBody));
+  ball("hd", 0.1, matBody);
 }
 
-function estimateFacing() {
-  const m = data.metrics.phases, f = m["임팩트"];
-  const l = P(f, 23), r = P(f, 24);
-  let n = [-(r[2] - l[2]), r[0] - l[0]];
-  const a = P(m["백스윙"], data.wrist_index), b = P(m["피니시"], data.wrist_index);
-  if (n[0] * (b[0] - a[0]) + n[1] * (b[2] - a[2]) < 0) n = n.map(v => -v);
-  const len = Math.hypot(...n);
-  return len > 1e-6 ? n.map(v => v / len) : [0, 1];
+function placeBody(f) {
+  for (const s of skel) {
+    if (s.j !== undefined) { s.m.position.set(...pt(f, s.j)); continue; }
+    va.set(...pt(f, s.a)); vb.set(...pt(f, s.b));
+    dir.subVectors(vb, va);
+    const len = dir.length();
+    s.m.position.addVectors(va, vb).multiplyScalar(0.5);
+    s.m.scale.set(s.r, Math.max(len, 1e-4), s.r);
+    if (len > 1e-6) s.m.quaternion.setFromUnitVectors(UP, dir.divideScalar(len));
+  }
+}
+
+// 스윙 궤적: 백스윙~피니시 구간만, 굵은 관으로. 전체 경로는 옅게, 지금까지 지나온 부분은 진하게.
+function buildTrail() {
+  [trailFull, trailNow].forEach(o => o && scene.remove(o));
+  trailFull = trailNow = trailRange = null;
+  const { 백스윙: s0, 피니시: s1 } = data.metrics.phases;
+  const a = Math.max(0, s0 - 2), b = Math.min(data.frames.length - 1, s1 + 2);
+  const pts = [];
+  for (let f = a; f <= b; f++) pts.push(new THREE.Vector3(...P(f, data.wrist_index)));
+  if (pts.length < 2) return;
+  const segs = (pts.length - 1) * 3, radial = 10;
+  const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), segs, 0.016, radial, false);
+  const max = Math.max(...data.speed.slice(a, b + 1)) || 1, col = [];
+  for (let i = 0; i <= segs; i++) {
+    const f = a + Math.round((i / segs) * (pts.length - 1));
+    const k = SLOW.clone().lerp(FAST, data.speed[f] / max);
+    for (let r = 0; r <= radial; r++) col.push(k.r, k.g, k.b);
+  }
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  trailFull = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.25, depthWrite: false }));
+  trailNow = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({ vertexColors: true }));
+  trailRange = { a, b, segs, radial };
+  scene.add(trailFull, trailNow);
+}
+
+// 보는 방향 프리셋. 기본은 원본 영상을 찍은 카메라 자리(+z)라서 영상과 같은 모습으로 시작한다.
+const CAMS = { front: [0, 0.12, 1], side: [1, 0.12, 0], top: [0, 1, 0.02] };
+let camBase = null, camTween = null;
+function setCam(name, animate = true) {
+  document.querySelectorAll("[data-cam]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.cam === name)));
+  if (!name || !camBase) return;
+  const d = new THREE.Vector3(...CAMS[name]).normalize().multiplyScalar(camBase.dist);
+  const to = camBase.target.clone().add(d);
+  if (!animate || matchMedia("(prefers-reduced-motion: reduce)").matches) { camera.position.copy(to); controls.update(); return; }
+  camTween = { from: camera.position.clone(), to, t0: performance.now() };
 }
 
 function build3D() {
-  [floor, trail].forEach(o => o && scene.remove(o));
-  const n = data.frames.length, w = data.wrist_index;
+  if (floor) scene.remove(floor);
+  const n = data.frames.length;
   let lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
   for (let f = 0; f < n; f++) for (let j = 11; j < 33; j++) {
     const p = P(f, j);
     lo = lo.map((v, i) => Math.min(v, p[i])); hi = hi.map((v, i) => Math.max(v, p[i]));
   }
   const c = lo.map((v, i) => (v + hi[i]) / 2);
-  const imp = data.metrics.phases["임팩트"], hl = P(imp, 23), hr = P(imp, 24), facing = estimateFacing();
-  floor = buildCourt(lo[1] - 0.02, hl.map((v, i) => (v + hr[i]) / 2), facing);
-  const max = Math.max(...data.speed) || 1, slow = new THREE.Color(0x9cc2ee), fast = new THREE.Color(0xf28c28);
-  const pos = [], col = [];
-  for (let f = 0; f < n; f++) {
-    pos.push(...P(f, w));
-    const k = slow.clone().lerp(fast, data.speed[f] / max);
-    col.push(k.r, k.g, k.b);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
-  trail = new THREE.Line(g, new THREE.LineBasicMaterial({ vertexColors: true }));
-  scene.add(floor, trail);
-  marker.position.set(...P(data.metrics.phases["임팩트"], w));
+  // 바닥: 발 높이의 넓은 판 + 발밑 흰 원. 탁구대 위치는 카메라 한 대로 알 수 없어 그리지 않는다.
+  floor = new THREE.Group();
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshBasicMaterial({ color: 0x0b2340 }));
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.585, 72),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45 }));
+  ring.position.z = 0.002;
+  floor.add(ground, ring);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, lo[1] - 0.02, 0);
+  scene.add(floor);
+  buildBody();
+  buildTrail();
+  marker.position.set(...P(data.metrics.phases["임팩트"], data.wrist_index));
   const size = Math.max(hi[1] - lo[1], hi[0] - lo[0], 1.2);
-  // 선수 뒤 비스듬한 위치에서, 선수와 테이블 사이를 바라본다
-  const side = [facing[1], -facing[0]], t = [c[0] + facing[0] * 0.6, c[1] - size * 0.1, c[2] + facing[1] * 0.6];
-  controls.target.set(...t);
-  camera.position.set(t[0] - facing[0] * size * 2.3 + side[0] * size * 0.8, t[1] + size * 0.55,
-    t[2] - facing[1] * size * 2.3 + side[1] * size * 0.8);
-  controls.update();
+  camBase = { target: new THREE.Vector3(c[0], c[1], c[2]), dist: size * 1.9 };
+  controls.target.copy(camBase.target);
+  setCam("front", false);
 }
 
 const fmt = (v, d = 0) => (v === undefined || Number.isNaN(v) ? "–" : v.toFixed(d));
 function show(f) {
   frame = Math.max(0, Math.min(f, data.frames.length - 1));
-  // 얼굴 점(0~10)은 선으로 이으면 낙서처럼 보여서 머리는 구 하나로
-  bones.geometry.setAttribute("position", new THREE.Float32BufferAttribute(
-    data.connections.filter(([a, b]) => a >= 11 && b >= 11).flatMap(([a, b]) => [...P(frame, a), ...P(frame, b)]), 3));
-  const ears = [P(frame, 7), P(frame, 8)];
-  head.position.set(...ears[0].map((v, i) => (v + ears[1][i]) / 2));
-  joints.geometry.setAttribute("position", new THREE.Float32BufferAttribute(
-    data.frames[frame].slice(11).flatMap((_, j) => P(frame, j + 11)), 3));
+  placeBody(frame);
+  if (trailRange) {
+    const { a, b, segs, radial } = trailRange;
+    const t = Math.min(1, Math.max(0, (frame - a) / (b - a)));
+    trailNow.geometry.setDrawRange(0, Math.round(t * segs) * radial * 6);
+  }
   $("seek").value = frame;
   const s = data.series ?? {};
   $("rSpeed").replaceChildren(fmt(data.speed[frame], 1), h("small", {}, "m/s"));
@@ -723,6 +756,9 @@ $("save").onclick = () => {
 $("rate").onchange = () => { video.playbackRate = +$("rate").value; };
 $("seek").oninput = e => go(+e.target.value);
 document.querySelectorAll("[data-ph]").forEach(b => b.onclick = () => data && go(data.metrics.phases[b.dataset.ph]));
+document.querySelectorAll("[data-cam]").forEach(b => b.onclick = () => setCam(b.dataset.cam));
+// 손으로 돌리기 시작하면 프리셋 선택 해제
+controls.addEventListener("start", () => { camTween = null; setCam(null); });
 const setPlayIcon = on => {
   $("play").replaceChildren(icon(on ? "pause" : "play"));
   $("play").setAttribute("aria-label", on ? "일시정지" : "재생");
@@ -754,6 +790,11 @@ video.onpause = () => !busy && setPlayIcon(false);
     renderer.setSize(w, hh);
     camera.aspect = w / hh;
     camera.updateProjectionMatrix();
+  }
+  if (camTween) {
+    const k = Math.min(1, (t - camTween.t0) / 450);
+    camera.position.lerpVectors(camTween.from, camTween.to, 1 - (1 - k) ** 3);
+    if (k === 1) camTween = null;
   }
   controls.update();
   renderer.render(scene, camera);

@@ -74,3 +74,12 @@ uv run swing.py 내스윙.mp4 --ref my_pro.json
 
 저장 형식(컬렉션 `swings`, 문서 1개 = 스윙 1개): `fps`, `hand`, `window`(원본 프레임 중 저장한 구간), `metrics`(분석 결과), `frames`(3D 좌표 JSON 문자열), `frames2d`(영상 위 2D 좌표 JSON 문자열), `createdAt`, `consent`, `app`.
 모인 데이터는 Firebase 콘솔이나 서버용 관리자 SDK 로 내려받습니다.
+
+## 데이터셋 점수 매기기와 평가 AI 학습
+
+1. **관리자 등록**: 사이트에서 Google 로그인을 한 번 한 뒤, Firebase 콘솔 → Firestore 에 `admins` 컬렉션을 만들고 문서 ID 를 내 계정 UID(Authentication → 사용자 목록에 있음)로 추가합니다. 필드는 아무거나(예: `name`) 하나 있으면 됩니다.
+2. **점수 매기기**: https://hooni9807.github.io/ttt/label.html 에서 데이터셋 스윙을 하나씩 재생해 보고 0~10점(0.5 단위)과 메모를 저장합니다. 다시 열면 고칠 수 있습니다. 단축키 ←/→ 점수, Enter 저장하고 다음, Space 재생. 관리자만 데이터셋을 보고 점수를 쓸 수 있습니다(`firestore.rules`).
+3. **내려받기**: "점수 매긴 데이터 내려받기"로 `ttt-labels-날짜.json` 을 받습니다.
+4. **학습**: `uv run train_scorer.py ttt-labels-날짜.json -o scorer.json`
+   - 구간별 각도 9개, 손목 속도, 스윙 면, 힘 전달 순서·타이밍으로 사람 점수를 맞히는 릿지 회귀를 학습합니다.
+   - 하나씩 빼고 맞혀 본 평균 오차를 "모두 평균으로 찍었을 때"와 비교해 출력합니다. 최소 10개, 믿을 만하려면 50개 이상 필요합니다.

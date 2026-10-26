@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>TTT · 데이터셋 점수 매기기</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+  :root { --floor: #0B2340; --table: #17457A; --line: #FFFFFF; --ink: #FFFFFF; --ink-2: #C9D8EC; --ink-3: #9DB4D3; --ball: #F28C28; --ok: #7FD8A6; --warn: #FF9A8A; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--floor); color: var(--ink); font: 400 15px/1.6 "Pretendard Variable", Pretendard, system-ui, sans-serif; word-break: keep-all; font-variant-numeric: tabular-nums; }
+  ::selection { background: var(--ball); color: var(--floor); }
+  :focus-visible { outline: 3px solid var(--ball); outline-offset: 3px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  .wrap { width: min(1180px, 100%); margin: 0 auto; padding: 16px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 16px; }
+  .mark { font-weight: 900; font-size: 22px; letter-spacing: .18em; color: var(--ink); text-decoration: none; }
+  h1 { font-size: 18px; font-weight: 800; margin: 0; flex: 1; }
+  .who { color: var(--ink-2); font-size: 14px; }
+  .btn { min-height: 44px; padding: 0 18px; border-radius: 999px; border: 2px solid var(--line); background: transparent; font-weight: 700; cursor: pointer; }
+  .btn.primary { background: var(--ball); border-color: var(--ball); color: var(--floor); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .msg { padding: 20px; border: 2px solid var(--line); border-radius: 10px; background: var(--table); }
+  .layout { display: grid; gap: 16px; }
+  @media (min-width: 900px) { .layout { grid-template-columns: 340px 1fr; align-items: start; } }
+  .side { display: grid; gap: 10px; }
+  .filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .filters button { min-height: 36px; padding: 0 12px; border-radius: 999px; border: 2px solid var(--line); background: transparent; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .filters button[aria-pressed=true] { background: var(--line); color: var(--floor); }
+  .count { font-size: 13px; color: var(--ink-2); }
+  #list { list-style: none; margin: 0; padding: 0; max-height: 70vh; overflow: auto; display: grid; gap: 6px; }
+  #list button { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 0 10px; padding: 10px 12px; text-align: left; border-radius: 10px; border: 2px solid rgba(255,255,255,.35); background: var(--table); cursor: pointer; }
+  #list button[aria-current=true] { border-color: var(--ball); }
+  #list .when { font-weight: 700; }
+  #list .sub { font-size: 12px; color: var(--ink-2); }
+  #list .lab { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-weight: 800; }
+  #list .lab.none { color: var(--ink-3); font-weight: 600; font-size: 13px; }
+  .panel { padding: 16px; border: 4px solid var(--line); border-radius: 8px; background: var(--table); display: grid; gap: 14px; }
+  canvas { width: 100%; height: min(52vh, 460px); display: block; background: #0e2c50; border-radius: 6px; }
+  .play { display: flex; gap: 10px; align-items: center; }
+  .play input[type=range] { flex: 1; accent-color: var(--ball); }
+  .facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--ink-2); }
+  .facts b { color: var(--ink); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 6px; text-align: left; border-top: 1px solid rgba(255,255,255,.2); }
+  thead th { border-top: 0; color: var(--ink-2); font-weight: 600; }
+  .scorebox { display: grid; gap: 10px; padding-top: 6px; border-top: 3px solid var(--line); }
+  .scorebox label { font-weight: 800; }
+  .scoreline { display: flex; gap: 12px; align-items: center; }
+  .scoreline input[type=range] { flex: 1; accent-color: var(--ball); height: 32px; }
+  .scoreline output { font-size: 32px; font-weight: 800; min-width: 3ch; text-align: right; }
+  textarea { width: 100%; min-height: 64px; padding: 10px; border-radius: 8px; border: 2px solid rgba(255,255,255,.4); background: #0e2c50; resize: vertical; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  #status { font-size: 14px; color: var(--ink-2); }
+  .hint { font-size: 13px; color: var(--ink-3); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="mark" href="./">TTT</a>
+    <h1>데이터셋 점수 매기기</h1>
+    <span class="who" id="who"></span>
+    <button type="button" class="btn" id="login" hidden>Google로 로그인</button>
+    <button type="button" class="btn" id="export" hidden>점수 매긴 데이터 내려받기</button>
+  </header>
+
+  <p class="msg" id="gate">불러오는 중...</p>
+
+  <div class="layout" id="app" hidden>
+    <aside class="side">
+      <div class="filters" role="group" aria-label="목록 거르기">
+        <button type="button" data-filter="todo" aria-pressed="true">미평가</button>
+        <button type="button" data-filter="done" aria-pressed="false">평가함</button>
+        <button type="button" data-filter="all" aria-pressed="false">전체</button>
+        <span class="count" id="count"></span>
+      </div>
+      <ul id="list"></ul>
+    </aside>
+
+    <section class="panel" id="detail" hidden aria-label="선택한 스윙">
+      <canvas id="cv" aria-label="스윙 움직임 (정면 투영)"></canvas>
+      <div class="play">
+        <button type="button" class="btn" id="play">재생</button>
+        <input type="range" id="seek" min="0" value="0" aria-label="프레임">
+        <select id="rate" aria-label="재생 속도"><option value="0.25" selected>0.25배</option><option value="0.5">0.5배</option><option value="1">1배</option></select>
+      </div>
+      <div class="facts" id="facts"></div>
+      <table><thead><tr><th>항목</th><th>백스윙</th><th>임팩트</th><th>피니시</th></tr></thead><tbody id="angles"></tbody></table>
+
+      <form class="scorebox" id="form">
+        <label for="score">사람이 매긴 점수 (0~10)</label>
+        <div class="scoreline">
+          <input type="range" id="score" min="0" max="10" step="0.5" value="5">
+          <output id="scoreOut" for="score">5.0</output>
+        </div>
+        <textarea id="note" maxlength="200" placeholder="메모 (선택): 왜 이 점수인지, 고칠 점"></textarea>
+        <div class="row">
+          <button type="submit" class="btn primary" id="saveBtn">저장하고 다음</button>
+          <span id="status" role="status"></span>
+        </div>
+        <p class="hint">단축키: ←/→ 점수 0.5씩 · Enter 저장하고 다음 · Space 재생</p>
+      </form>
+    </section>
+  </div>
+</div>
+
+<script type="module">
+import { analyze, evaluate, PHASES, CHAIN } from "./analyze.js";
+import { firebaseConfig } from "./firebase-config.js";
+
+const FIREBASE = "https://www.gstatic.com/firebasejs/10.14.1/";
+const $ = id => document.getElementById(id);
+const [appM, fs, auth] = await Promise.all(["firebase-app", "firebase-firestore", "firebase-auth"].map(n => import(`${FIREBASE}${n}.js`)));
+const fbApp = appM.getApps()[0] ?? appM.initializeApp(firebaseConfig);
+const db = fs.getFirestore(fbApp), au = auth.getAuth(fbApp);
+const ref = await fetch("pro_ranges.json").then(r => r.json()).catch(() => ({}));
+
+let user = null, items = [], filter = "todo", cur = null, frames = null, fps = 30, frame = 0, playing = false, last = 0;
+const h = (tag, props = {}, ...kids) => { const el = document.createElement(tag); for (const [k, v] of Object.entries(props)) el.setAttribute(k, v); el.append(...kids); return el; };
+const fmt = ts => (ts?.toDate ? ts.toDate() : new Date()).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+$("login").onclick = () => auth.signInWithPopup(au, new auth.GoogleAuthProvider()).catch(e => console.error(e));
+auth.onAuthStateChanged(au, async u => {
+  user = u;
+  $("login").hidden = !!u;
+  $("who").textContent = u ? `${u.displayName || u.email}` : "";
+  if (!u) { $("gate").textContent = "관리자 Google 계정으로 로그인해 주세요."; $("gate").hidden = false; $("app").hidden = true; return; }
+  // 관리자 확인: admins/{uid} 문서가 있어야 데이터셋을 읽고 점수를 쓸 수 있다(firestore.rules)
+  const admin = await fs.getDoc(fs.doc(db, "admins", u.uid)).then(d => d.exists()).catch(() => false);
+  if (!admin) {
+    $("gate").textContent = `이 계정은 관리자가 아니에요. Firebase 콘솔 Firestore에 admins 컬렉션을 만들고 문서 ID를 ${u.uid} 로 추가하면 관리자가 돼요.`;
+    $("gate").hidden = false; $("app").hidden = true; return;
+  }
+  $("gate").hidden = true; $("app").hidden = false; $("export").hidden = false;
+  await loadAll();
+});
+
+async function loadAll() {
+  const snap = await fs.getDocs(fs.query(fs.collection(db, "swings"), fs.orderBy("createdAt", "desc"), fs.limit(500)));
+  items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderList();
+}
+
+function shown() { return items.filter(it => filter === "all" || (filter === "done") === !!it.label); }
+function renderList() {
+  const list = shown();
+  $("count").textContent = `${list.length}개 · 전체 ${items.length} · 평가 ${items.filter(i => i.label).length}`;
+  $("list").replaceChildren(...list.map(it => {
+    const b = h("button", { type: "button", "aria-current": String(cur?.id === it.id) },
+      h("span", { class: "when" }, fmt(it.createdAt)),
+      h("span", { class: "lab" + (it.label ? "" : " none") }, it.label ? it.label.score.toFixed(1) : "미평가"),
+      h("span", { class: "sub" }, `${it.hand === "L" ? "왼손" : "오른손"} · ${it.fps}fps · 규칙 점수 ${evaluate(it.metrics, ref).score.total.toFixed(1)}`));
+    b.onclick = () => select(it);
+    return h("li", {}, b);
+  }));
+}
+
+function select(it) {
+  cur = it;
+  frames = JSON.parse(it.frames);
+  fps = it.fps;
+  // 저장된 구간으로 다시 분석(좌표가 같으니 수치도 같다) → 화면용 구간 번호
+  const m = analyze(frames, fps, it.hand);
+  cur.view = m;
+  $("seek").max = frames.length - 1;
+  const e = evaluate(it.metrics, ref);
+  $("facts").replaceChildren(
+    h("span", {}, "규칙 점수 ", h("b", {}, e.score.total.toFixed(1))),
+    h("span", {}, "손목 ", h("b", {}, `${it.metrics.impact_speed.toFixed(1)} m/s`)),
+    h("span", {}, "스윙 면 ", h("b", {}, it.metrics.swing_plane == null ? "–" : `${it.metrics.swing_plane}°`)),
+    h("span", {}, "힘 전달 ", h("b", {}, it.metrics.chain_ok ? "순서 정상" : "순서 어긋남")));
+  $("angles").replaceChildren(...["팔꿈치", "무릎", "몸통 꼬임"].map(k => h("tr", {}, h("th", {}, k), ...PHASES.map(p => h("td", {}, `${it.metrics.angles[p][k]}°`)))));
+  const s = it.label?.score ?? Math.round(e.score.total * 2) / 2;
+  $("score").value = s; $("scoreOut").textContent = (+s).toFixed(1);
+  $("note").value = it.label?.note ?? "";
+  $("status").textContent = it.label ? `이전 점수 ${it.label.score.toFixed(1)} · 수정하면 덮어써요` : "";
+  $("detail").hidden = false;
+  frame = m.phases["임팩트"]; draw();
+  renderList();
+}
+
+$("score").oninput = () => { $("scoreOut").textContent = (+$("score").value).toFixed(1); };
+$("form").onsubmit = async ev => {
+  ev.preventDefault();
+  if (!cur) return;
+  $("saveBtn").disabled = true;
+  const label = { score: +$("score").value, note: $("note").value.trim(), by: user.uid, at: fs.serverTimestamp() };
+  try {
+    await fs.updateDoc(fs.doc(db, "swings", cur.id), { label });
+    cur.label = { ...label, at: null };
+    $("status").textContent = "저장했어요";
+    const list = shown(), i = list.findIndex(x => x.id === cur.id);
+    const next = list[i + 1] ?? list.find(x => !x.label && x.id !== cur.id);
+    renderList();
+    if (next) select(next);
+  } catch (e) {
+    console.error(e);
+    $("status").textContent = "저장하지 못했어요. 관리자 권한과 네트워크를 확인해 주세요.";
+  } finally { $("saveBtn").disabled = false; }
+};
+document.querySelectorAll("[data-filter]").forEach(b => b.onclick = () => {
+  filter = b.dataset.filter;
+  document.querySelectorAll("[data-filter]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  renderList();
+});
+document.addEventListener("keydown", e => {
+  if (!cur || e.target.tagName === "TEXTAREA") return;
+  if (e.key === "ArrowRight" || e.key === "ArrowLeft") { $("score").value = +$("score").value + (e.key === "ArrowRight" ? .5 : -.5); $("score").oninput(); e.preventDefault(); }
+  if (e.key === "Enter" && e.target.tagName !== "BUTTON") { $("form").requestSubmit(); e.preventDefault(); }
+  if (e.key === " " && e.target.tagName !== "BUTTON") { $("play").click(); e.preventDefault(); }
+});
+
+// 점수 매긴 데이터 내려받기: train_scorer.py 의 입력
+$("export").onclick = () => {
+  const rows = items.filter(i => i.label).map(({ id, fps, hand, metrics, frames, label }) => ({ id, fps, hand, metrics, frames, label: { score: label.score, note: label.note } }));
+  const a = h("a", { href: URL.createObjectURL(new Blob([JSON.stringify(rows)], { type: "application/json" })), download: `ttt-labels-${new Date().toISOString().slice(0, 10)}.json` });
+  a.click();
+};
+
+// ---------- 정면 투영 2D 재생 ----------
+const cv = $("cv"), g = cv.getContext("2d");
+const BONES = [[11, 12], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28], [11, 13], [13, 15], [12, 14], [14, 16], [27, 31], [28, 32]];
+function draw() {
+  if (!frames) return;
+  const w = cv.clientWidth, hh = cv.clientHeight, dpr = devicePixelRatio;
+  if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(hh * dpr); }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, hh);
+  const xs = frames.flatMap(f => f.slice(11).map(p => p[0])), ys = frames.flatMap(f => f.slice(11).map(p => p[1]));
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), s = Math.min((w - 40) / (Math.max(...xs) - x0), (hh - 40) / (Math.max(...ys) - y0));
+  const ox = (w - (Math.max(...xs) - x0) * s) / 2, Q = (f, j) => [ox + (frames[f][j][0] - x0) * s, 20 + (frames[f][j][1] - y0) * s];
+  const wi = cur.hand === "L" ? 15 : 16, m = cur.view;
+  g.lineCap = "round";
+  g.strokeStyle = "rgba(255,255,255,.3)"; g.lineWidth = 3; g.beginPath();
+  for (let f = m.phases["백스윙"]; f <= m.phases["피니시"]; f++) { const [x, y] = Q(f, wi); f === m.phases["백스윙"] ? g.moveTo(x, y) : g.lineTo(x, y); }
+  g.stroke();
+  g.strokeStyle = "#FFFFFF"; g.lineWidth = 5;
+  for (const [a, b] of BONES) { g.beginPath(); g.moveTo(...Q(frame, a)); g.lineTo(...Q(frame, b)); g.stroke(); }
+  const head = Q(frame, 0); g.fillStyle = "#FFFFFF"; g.beginPath(); g.arc(head[0], head[1], 12, 0, Math.PI * 2); g.fill();
+  const wr = Q(frame, wi); g.fillStyle = "#F28C28"; g.beginPath(); g.arc(wr[0], wr[1], 9, 0, Math.PI * 2); g.fill();
+  const ph = PHASES.find(p => m.phases[p] === frame);
+  g.fillStyle = "#C9D8EC"; g.font = "600 14px Pretendard Variable, system-ui"; g.fillText(`${frame + 1}/${frames.length}${ph ? " · " + ph : ""}`, 12, hh - 12);
+  $("seek").value = frame;
+}
+$("seek").oninput = () => { frame = +$("seek").value; draw(); };
+$("play").onclick = () => { playing = !playing; $("play").textContent = playing ? "멈춤" : "재생"; };
+(function loop(t) {
+  requestAnimationFrame(loop);
+  if (playing && frames && t - last > 1000 / fps / $("rate").value) { last = t; frame = (frame + 1) % frames.length; draw(); }
+})(0);
+addEventListener("resize", draw);
+</script>
+</body>
+</html>

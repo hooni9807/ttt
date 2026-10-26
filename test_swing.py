@@ -103,3 +103,20 @@ else:
     print("node 없음: 웹 분석 대조 생략")
 
 print("ok")
+
+# 평가 AI 학습: 점수가 특징의 선형 함수면 거의 그대로 맞혀야 한다
+from train_scorer import features, fit, loo_error, predict
+
+rng = np.random.default_rng(0)
+fake_rows = []
+for _ in range(40):
+    mm = {"angles": {ph: {k: float(rng.uniform(60, 170)) for k in ("팔꿈치", "무릎", "몸통 꼬임")} for ph in ("백스윙", "임팩트", "피니시")},
+          "impact_speed": float(rng.uniform(2, 8)), "swing_plane": float(rng.uniform(10, 60)), "chain_ok": bool(rng.random() > .5),
+          "phases": {"임팩트": 50}, "chain_peaks": {"골반": int(rng.integers(30, 50)), "어깨": int(rng.integers(30, 50)), "팔꿈치": int(rng.integers(30, 50))}}
+    fake_rows.append(mm)
+FX = np.array([features(r, 60)[1] for r in fake_rows])
+fy = np.clip(1.0 * FX[:, 9] + 2 * FX[:, 11] - 1, 0, 10)  # 손목 속도와 힘 전달 순서로 정한 점수
+assert loo_error(FX, fy, 0.1) < 0.5, loo_error(FX, fy, 0.1)
+FX[0, 10] = np.nan  # 스윙 면 측정 불가여도 예측은 된다
+assert np.isfinite(predict(fit(FX, fy), FX)).all()
+print("scorer ok")

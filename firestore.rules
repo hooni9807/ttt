@@ -1,9 +1,20 @@
 rules_version = '2';
 
-// TTT 데이터 기여: 브라우저는 swings 에 "새 문서 쓰기"만 할 수 있고, 읽기·수정·삭제는 막는다.
-// 모인 데이터는 Firebase 콘솔이나 관리자 SDK(서버)로만 본다.
 service cloud.firestore {
   match /databases/{database}/documents {
+    // 관리자: admins/{uid} 문서가 있는 로그인 사용자 (Firebase 콘솔에서 직접 추가)
+    function isAdmin() {
+      return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // 관리자 문서는 본인이 "내가 관리자인지"만 확인할 수 있다. 쓰기는 콘솔에서만.
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // TTT 데이터 기여: 누구나 동의한 새 문서만 쓸 수 있다.
+    // 관리자는 읽고, 사람이 매긴 점수(label)만 붙이거나 고칠 수 있다(평가 AI 학습용).
     match /swings/{id} {
       allow create: if request.resource.data.keys().hasOnly(
                          ['app', 'createdAt', 'consent', 'fps', 'hand', 'window', 'metrics', 'frames', 'frames2d'])
@@ -15,7 +26,16 @@ service cloud.firestore {
                     && request.resource.data.frames is string && request.resource.data.frames.size() < 600000
                     && (!('frames2d' in request.resource.data)
                         || (request.resource.data.frames2d is string && request.resource.data.frames2d.size() < 400000));
-      allow read, update, delete: if false;
+      allow read: if isAdmin();
+      allow update: if isAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['label'])
+                    && request.resource.data.label.keys().hasOnly(['score', 'note', 'by', 'at'])
+                    && request.resource.data.label.score is number
+                    && request.resource.data.label.score >= 0 && request.resource.data.label.score <= 10
+                    && request.resource.data.label.note is string && request.resource.data.label.note.size() <= 200
+                    && request.resource.data.label.by == request.auth.uid
+                    && request.resource.data.label.at == request.time;
+      allow delete: if false;
     }
 
     // 내 기록: Google 로그인한 본인만 읽고, 만들고, 지울 수 있다. 다른 사람 기록은 볼 수 없다.

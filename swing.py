@@ -119,20 +119,20 @@ def analyze(pts, fps, hand="R"):
 
 
 def score(m, ref=None):
-    """10점 만점 참고 점수. 기준이 있는 항목만 쓰고, 빠진 항목은 만점에서 뺀 뒤 10점으로 환산.
-    힘 전달 4점(골반→어깨→팔꿈치→손목 3구간 중 순서가 맞는 비율), 프로 범위 4점(범위 안 항목 비율),
-    손목 속도 2점(프로 기준 대비, 넘으면 만점)."""
+    """참고 점수. 항목마다 10점 만점이고, 종합은 기준이 있는 항목들의 평균.
+    힘 전달(골반→어깨→팔꿈치→손목 3구간 중 순서가 맞는 비율), 프로 범위(범위 안 항목 비율),
+    손목 속도(프로 기준 대비, 넘으면 만점)."""
     ref = ref or {}
     r1 = lambda x: round(x * 10) / 10  # analyze.js 와 같은 반올림(0.5 는 짝수 쪽)
     pk = m["chain_peaks"]
-    parts = [("힘 전달", 4 * sum(pk[a] <= pk[b] for a, b in zip(CHAIN, CHAIN[1:])) / 3, 4)]
+    parts = [("힘 전달", 10 * sum(pk[a] <= pk[b] for a, b in zip(CHAIN, CHAIN[1:])) / 3, 10)]
     checks = [(m["angles"][ph][k], r) for ph, rs in ref.get("angles", {}).items() for k, r in rs.items()
               if "min" in r and k in m["angles"].get(ph, {})]
     if checks:
-        parts.append(("프로 범위", 4 * sum(r["min"] <= v <= r["max"] for v, r in checks) / len(checks), 4))
+        parts.append(("프로 범위", 10 * sum(r["min"] <= v <= r["max"] for v, r in checks) / len(checks), 10))
     sp = ref.get("impact_speed")
     if sp:
-        parts.append(("손목 속도", 2 * min(1, m["impact_speed"] / sp.get("min", sp.get("value"))), 2))
+        parts.append(("손목 속도", 10 * min(1, m["impact_speed"] / sp.get("min", sp.get("value"))), 10))
     parts = [(n, r1(g), mx) for n, g, mx in parts]
     return r1(sum(g for _, g, _ in parts) / sum(mx for *_, mx in parts) * 10), parts
 

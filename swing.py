@@ -1,6 +1,6 @@
 """탁구 스윙 영상 → 3D 자세 → 스윙 수치.
 
-사용법: uv run swing.py 영상.mp4 [--left] [--ref 프로영상.json]
+사용법: uv run swing.py 영상.mp4 [--left] [--ref 프로기준.json]
 결과: 콘솔 리포트 + 영상.json (viewer.html 에서 열기)
 """
 import argparse
@@ -17,6 +17,7 @@ from mediapipe.tasks.python import BaseOptions, vision
 MODEL = Path(__file__).with_name("pose_landmarker_heavy.task")
 MODEL_URL = ("https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
              "pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task")
+PRO_RANGES = Path(__file__).with_name("pro_ranges.json")
 L = vision.PoseLandmark
 CONNECTIONS = [(c.start, c.end) for c in vision.PoseLandmarksConnections.POSE_LANDMARKS]
 PHASES = ("백스윙", "임팩트", "피니시")
@@ -113,21 +114,29 @@ def analyze(pts, fps, hand="R"):
 
 
 def report(m, fps, ref=None):
-    lines = [f"임팩트 손목 속도: {m['impact_speed']:.1f} m/s (프레임 {m['phases']['임팩트']})"]
+    """ref: pro_ranges.json 형식. 항목마다 {min, max} 범위 또는 {value} 참고값과 source."""
+    ref = ref or {}
+    used = []
+
+    def check(v, r):
+        if not r:
+            return ""
+        used.append(r["source"])
+        if "min" in r:
+            return f" (프로 {r['min']:g}~{r['max']:g} {'✓' if r['min'] <= v <= r['max'] else '⚠'})"
+        return f" (프로 참고 {r['value']:g})"
+
+    lines = [f"임팩트 손목 속도: {m['impact_speed']:.1f} m/s (프레임 {m['phases']['임팩트']})"
+             + check(m["impact_speed"], ref.get("impact_speed"))]
     for ph, a in m["angles"].items():
-        parts = []
-        for k, v in a.items():
-            s = f"{k} {v}°"
-            if ref:
-                diff = v - ref["angles"][ph][k]
-                # ponytail: 기준 스윙 1개와 비교, 프로 여러 명의 범위(min~max)로 바꾸면 더 정확
-                s += f" (기준 {ref['angles'][ph][k]}°, {diff:+d}°{' ⚠' if abs(diff) > 10 else ''})"
-            parts.append(s)
-        lines.append(f"[{ph}] " + ", ".join(parts))
+        r = ref.get("angles", {}).get(ph, {})
+        lines.append(f"[{ph}] " + ", ".join(f"{k} {v}°" + check(v, r.get(k)) for k, v in a.items()))
     order = " → ".join(sorted(CHAIN, key=lambda k: m["chain_peaks"][k]))
     t = {k: (f - m["phases"]["임팩트"]) / fps * 1000 for k, f in m["chain_peaks"].items()}
     lines.append(f"힘 전달 순서: {order} " + ("✓ 정상" if m["chain_ok"] else "⚠ 순서가 어긋남 (팔로만 치는 스윙 의심)"))
     lines.append("  최고속도 시점(임팩트 기준): " + ", ".join(f"{k} {v:+.0f}ms" for k, v in t.items()))
+    if used:
+        lines += ["", "프로 기준 출처:"] + [f"  - {s}" for s in dict.fromkeys(used)]
     return "\n".join(lines)
 
 
@@ -135,7 +144,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("video")
     ap.add_argument("--left", action="store_true", help="왼손잡이")
-    ap.add_argument("--ref", help="비교할 기준(프로) 스윙의 분석 JSON")
+    ap.add_argument("--ref", default=PRO_RANGES, help="프로 기준 범위 JSON (기본: 논문 값 pro_ranges.json, make_ranges.py 로 직접 생성 가능)")
     a = ap.parse_args()
 
     raw, fps = extract(a.video)
@@ -144,7 +153,7 @@ def main():
     except ValueError as e:
         sys.exit(str(e))
     m = analyze(pts, fps, "L" if a.left else "R")
-    ref = json.loads(Path(a.ref).read_text())["metrics"] if a.ref else None
+    ref = json.loads(Path(a.ref).read_text()) if Path(a.ref).exists() else None
     text = report(m, fps, ref)
     print(text)
 

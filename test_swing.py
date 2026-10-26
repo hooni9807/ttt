@@ -43,4 +43,14 @@ try:
 except ValueError:
     pass
 
+# 프로 범위: 영상 3개로 평균 ± 표준편차, 범위 밖이면 ⚠
+from make_ranges import ranges
+from swing import report
+
+pro = ranges([{"impact_speed": s, "angles": {ph: {"팔꿈치": e} for ph in ("백스윙", "임팩트", "피니시")}}
+              for s, e in ((5, 100), (6, 110), (7, 120))], "테스트")
+assert pro["angles"]["임팩트"]["팔꿈치"] == {"min": 100.0, "max": 120.0, "source": "테스트"}
+text = report({**m, "impact_speed": 6.0, "angles": {"임팩트": {"팔꿈치": 130}}}, FPS, pro)
+assert "프로 5~7 ✓" in text and "팔꿈치 130° (프로 100~120 ⚠)" in text and "- 테스트" in text, text
+
 print("ok")

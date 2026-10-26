@@ -303,7 +303,7 @@
         <div class="controls">
           <button type="button" class="icon-btn" id="play" aria-label="재생"><svg class="icon"><use href="#i-play"/></svg></button>
           <input type="range" id="seek" min="0" value="0" aria-label="프레임 이동">
-          <select id="rate" aria-label="재생 속도"><option value="0.25">0.25배</option><option value="0.5">0.5배</option><option value="1" selected>1배</option></select>
+          <select id="rate" aria-label="재생 속도"><option value="0.1">0.1배</option><option value="0.25" selected>0.25배</option><option value="0.5">0.5배</option><option value="1">1배</option></select>
         </div>
         <div class="phases" role="group" aria-label="구간으로 이동">
           <button type="button" data-ph="백스윙" aria-pressed="false">백스윙</button>
@@ -729,6 +729,7 @@ function showResult() {
   $("start").hidden = true;
   $("result").hidden = false;
   $("vbox").prepend(video);
+  applyRate();
   window.scrollTo({ top: 0 });
 }
 
@@ -889,7 +890,9 @@ $("save").onclick = () => {
   const a = h("a", { href: URL.createObjectURL(new Blob([JSON.stringify(out)], { type: "application/json" })), download: "ttt-swing.json" });
   a.click();
 };
-$("rate").onchange = () => { video.playbackRate = +$("rate").value; };
+// 스윙은 순식간이라 기본은 슬로우(0.25배). 영상을 새로 열어도 고른 속도가 유지되게 기본값도 같이 바꾼다
+const applyRate = () => { video.defaultPlaybackRate = video.playbackRate = +$("rate").value; };
+$("rate").onchange = applyRate;
 $("seek").oninput = e => go(+e.target.value);
 document.querySelectorAll("[data-ph]").forEach(b => b.onclick = () => data && go(data.metrics.phases[b.dataset.ph]));
 document.querySelectorAll("[data-cam]").forEach(b => b.onclick = () => setCam(b.dataset.cam));

@@ -99,20 +99,28 @@
   @keyframes rise { from { opacity: 0; transform: translateY(12px); } }
   .stage { display: grid; grid-template-columns: 1fr; }
   .stage::before, .stage::after { display: none; }
-  .views { position: relative; display: grid; grid-template-columns: 1fr; }
-  #view { position: relative; height: min(62vh, 560px); min-height: 340px; cursor: grab; touch-action: none; }
-  .chips { position: absolute; left: 12px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 6px; z-index: 1; }
-  .chips button { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 2px solid var(--line); background: rgba(11, 35, 64, .7); font-size: 13px; font-weight: 700; cursor: pointer; }
-  .chips button[aria-pressed=true] { background: var(--line); color: var(--floor); }
+  /* 하나의 화면: 원본 영상(+2D 스켈레톤·궤적) 또는 3D. 3D 를 켜고 영상도 켜면 영상은 오른쪽 위 작은 화면 */
+  .screen { position: relative; height: min(64vh, 600px); min-height: 360px; background: #061528; overflow: hidden; }
+  #view, .vbox { position: absolute; inset: 0; }
+  #view { cursor: grab; touch-action: none; visibility: hidden; }
+  .screen.is-3d #view { visibility: visible; }
   #view:active { cursor: grabbing; }
   #view canvas { display: block; }
-  /* 원본 영상 + 그 위에 그린 2D 스켈레톤 */
-  .vbox { position: relative; height: min(48vh, 440px); min-height: 280px; background: #061528; border-bottom: 3px solid var(--line); }
   .vbox video { display: block; width: 100%; height: 100%; object-fit: contain; }
   .vbox canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-  .vbox.hide-video video { visibility: hidden; }
-  .stage.no-video .vbox { display: none; }
-  .meta { position: absolute; right: 14px; top: 12px; font-size: 12px; color: var(--ink-3); text-align: right; }
+  .screen.hide-video .vbox video { visibility: hidden; }
+  .screen.is-3d .vbox {
+    inset: 12px 12px auto auto; width: 30%; max-width: 220px; aspect-ratio: var(--ar, 9 / 16); max-height: 45%;
+    border: 2px solid var(--line); border-radius: 6px; background: #061528; overflow: hidden; z-index: 1;
+  }
+  .screen.is-3d.hide-video .vbox, .stage.no-video .vbox { display: none; }
+  .tools { position: absolute; left: 12px; right: 12px; bottom: 12px; display: grid; gap: 6px; justify-items: start; z-index: 2; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 2px solid var(--line); background: rgba(11, 35, 64, .7); font-size: 13px; font-weight: 700; cursor: pointer; }
+  .chips button[aria-pressed=true] { background: var(--line); color: var(--floor); }
+  .chips button:disabled { opacity: .35; cursor: default; }
+  .screen:not(.is-3d) .cams { display: none; }
+  .meta { position: absolute; left: 14px; top: 12px; font-size: 12px; color: var(--ink-3); z-index: 2; }
 
   .controls { display: flex; align-items: center; gap: 10px; padding: 14px 16px 6px; }
   .icon-btn { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--line); background: transparent; cursor: pointer; }
@@ -196,14 +204,8 @@
     #start .net { height: auto; }
     #start::before, #start::after { display: none; }
     #start .half:last-child { align-self: center; }
-    /* 영상이 있어도 3D 가 더 크게 */
-    .views { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+    .screen { height: min(70vh, 640px); }
     .callout { padding: 40px 48px 36px; }
-    .vbox { height: min(62vh, 560px); border-bottom: 0; }
-    .views #view { border-left: 3px solid var(--line); }
-    .stage.no-video .views { grid-template-columns: 1fr; }
-    .stage.no-video .views #view { border-left: 0; }
-    .meta { right: 14px; }
     .below { grid-template-columns: 1fr 1fr; column-gap: 56px; }
     .below .wide { grid-column: 1 / -1; }
   }
@@ -268,23 +270,24 @@
 
     <section id="result" hidden aria-label="분석 결과">
       <div class="table stage" id="stage">
-        <div class="views">
-          <div class="vbox" id="vbox">
-            <canvas id="overlay" aria-hidden="true"></canvas>
-            <div class="chips" role="group" aria-label="영상 위에 보일 것 (여러 개 선택)">
-              <button type="button" data-layer="video" aria-pressed="true">영상</button>
-              <button type="button" data-layer="skeleton" aria-pressed="true">스켈레톤</button>
-              <button type="button" data-layer="trail" aria-pressed="true">궤적</button>
-            </div>
-          </div>
-          <div id="view" aria-label="3D 스윙. 드래그로 돌리고 두 손가락이나 휠로 확대합니다.">
-            <div class="chips" role="group" aria-label="보는 방향">
+        <!-- 화면은 하나. 아래 버튼(여러 개 선택)으로 보이는 것을 바꾼다 -->
+        <div class="screen" id="screen">
+          <div id="view" aria-label="3D 스윙. 드래그로 돌리고 두 손가락이나 휠로 확대합니다."></div>
+          <div class="vbox" id="vbox"><canvas id="overlay" aria-hidden="true"></canvas></div>
+          <p class="meta" id="meta"></p>
+          <div class="tools">
+            <div class="chips cams" role="group" aria-label="3D 보는 방향">
               <button type="button" data-cam="front" aria-pressed="true">영상 시점</button>
               <button type="button" data-cam="side" aria-pressed="false">옆</button>
               <button type="button" data-cam="top" aria-pressed="false">위</button>
             </div>
+            <div class="chips" role="group" aria-label="화면에 보일 것 (여러 개 선택)">
+              <button type="button" data-layer="video" aria-pressed="true">영상</button>
+              <button type="button" data-layer="skeleton" aria-pressed="true">스켈레톤</button>
+              <button type="button" data-layer="trail" aria-pressed="true">궤적</button>
+              <button type="button" data-layer="3d" aria-pressed="false">3D</button>
+            </div>
           </div>
-          <p class="meta" id="meta"></p>
         </div>
         <div class="net"></div>
         <div class="controls">
@@ -441,7 +444,7 @@ function placeBody(f) {
 
 // 원본 영상 위 2D 스켈레톤. 3D 와 같은 색 규칙: 흰 몸, 따뜻한 치는 팔, 오렌지 궤적·임팩트.
 const overlay = $("overlay"), octx = overlay.getContext("2d");
-const layerOn = name => document.querySelector(`button[data-layer=${name}]`).getAttribute("aria-pressed") === "true";
+const layerOn = name => document.querySelector(`button[data-layer="${name}"]`).getAttribute("aria-pressed") === "true";
 function drawOverlay() {
   const box = $("vbox"), w = box.clientWidth, hh = box.clientHeight, dpr = devicePixelRatio;
   if (overlay.width !== Math.round(w * dpr) || overlay.height !== Math.round(hh * dpr)) {
@@ -488,6 +491,16 @@ function drawOverlay() {
   octx.strokeStyle = "#FFFFFF"; octx.lineWidth = lw; octx.stroke();
 }
 new ResizeObserver(() => data && drawOverlay()).observe($("vbox"));
+
+// 버튼 상태를 화면에 반영: 3D 를 켜면 3D 화면, 스켈레톤·궤적은 2D 와 3D 모두에 적용
+function applyLayers() {
+  const s = $("screen");
+  s.classList.toggle("is-3d", layerOn("3d"));
+  s.classList.toggle("hide-video", !layerOn("video"));
+  body.visible = layerOn("skeleton");
+  [trailFull, trailNow, marker].forEach(o => o && (o.visible = layerOn("trail")));
+  drawOverlay();
+}
 
 // 스윙 궤적: 백스윙~피니시 구간만, 굵은 관으로. 전체 경로는 옅게, 지금까지 지나온 부분은 진하게.
 function buildTrail() {
@@ -677,9 +690,15 @@ function load(d) {
   evalr = evaluate(d.metrics, ref, tips);
   $("seek").max = d.frames.length - 1;
   $("stage").classList.toggle("no-video", !d.hasVideo);
+  // 영상이 없으면(명령줄 JSON) 3D 로만 본다
+  const vBtn = document.querySelector("button[data-layer=video]");
+  vBtn.disabled = !d.hasVideo;
+  if (!d.hasVideo) document.querySelector("button[data-layer='3d']").setAttribute("aria-pressed", "true");
+  if (d.hasVideo && video.videoWidth) $("screen").style.setProperty("--ar", `${video.videoWidth} / ${video.videoHeight}`);
   $("meta").textContent = d.note ?? "";
   showResult();
   build3D();
+  applyLayers();
   renderFeedback();
   renderCompare();
   renderChain();
@@ -826,11 +845,10 @@ $("rate").onchange = () => { video.playbackRate = +$("rate").value; };
 $("seek").oninput = e => go(+e.target.value);
 document.querySelectorAll("[data-ph]").forEach(b => b.onclick = () => data && go(data.metrics.phases[b.dataset.ph]));
 document.querySelectorAll("[data-cam]").forEach(b => b.onclick = () => setCam(b.dataset.cam));
-// 영상 / 스켈레톤 / 궤적은 각각 켜고 끄는 토글 (여러 개 동시 선택)
+// 영상 / 스켈레톤 / 궤적 / 3D 는 각각 켜고 끄는 토글 (여러 개 동시 선택)
 document.querySelectorAll("button[data-layer]").forEach(b => b.onclick = () => {
   b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"));
-  $("vbox").classList.toggle("hide-video", !layerOn("video"));
-  drawOverlay();
+  applyLayers();
 });
 // 손으로 돌리기 시작하면 프리셋 선택 해제
 controls.addEventListener("start", () => { camTween = null; setCam(null); });

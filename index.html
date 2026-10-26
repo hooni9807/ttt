@@ -437,9 +437,15 @@ function buildTrail() {
   trailFull = trailNow = trailRange = null;
   const { 백스윙: s0, 피니시: s1 } = data.metrics.phases;
   const a = Math.max(0, s0 - 2), b = Math.min(data.frames.length - 1, s1 + 2);
-  const pts = [];
-  for (let f = a; f <= b; f++) pts.push(new THREE.Vector3(...P(f, data.wrist_index)));
-  if (pts.length < 2) return;
+  // 화면용으로 한 번 더 이동평균: 손목 떨림이 관을 구불구불하게 만들지 않게
+  const raw = [];
+  for (let f = a; f <= b; f++) raw.push(P(f, data.wrist_index));
+  if (raw.length < 2) return;
+  const hw = Math.max(1, Math.round(data.fps / 40));
+  const pts = raw.map((_, i) => {
+    const near = raw.slice(Math.max(0, i - hw), i + hw + 1);
+    return new THREE.Vector3(...[0, 1, 2].map(d => near.reduce((s, p) => s + p[d], 0) / near.length));
+  });
   const segs = (pts.length - 1) * 3, radial = 10;
   const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), segs, 0.016, radial, false);
   const max = Math.max(...data.speed.slice(a, b + 1)) || 1, col = [];

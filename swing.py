@@ -22,6 +22,7 @@ TIPS = json.loads(Path(__file__).with_name("tips.json").read_text())
 L = vision.PoseLandmark
 CONNECTIONS = [(c.start, c.end) for c in vision.PoseLandmarksConnections.POSE_LANDMARKS]
 PHASES = ("백스윙", "임팩트", "피니시")
+BACK_SEC, FOLLOW_SEC = 0.8, 0.6  # 백스윙·피니시를 찾는 범위(임팩트 기준 초)
 CHAIN = ("골반", "어깨", "팔꿈치", "손목")
 
 
@@ -89,7 +90,10 @@ def analyze(pts, fps, hand="R"):
     # ponytail: 스윙 하나만 있다고 가정, 여러 번 치는 영상은 스윙 구간 분할 필요
     impact = int(np.argmax(speed))
     dist = np.linalg.norm(wrist - wrist[impact], axis=1)
-    phases = dict(zip(PHASES, (int(np.argmax(dist[:impact + 1])), impact, impact + int(np.argmax(dist[impact:])))))
+    # 영상 속 다른 움직임(걷기, 공 줍기)을 빼려고 임팩트 앞 0.8초, 뒤 0.6초 안에서만 찾는다
+    # ponytail: 포핸드 기준 고정 창, 느린 스윙(커트·로브)이 잘리면 늘릴 것
+    b0, f1 = max(0, impact - int(BACK_SEC * fps)), min(len(wrist), impact + int(FOLLOW_SEC * fps) + 1)
+    phases = dict(zip(PHASES, (b0 + int(np.argmax(dist[b0:impact + 1])), impact, impact + int(np.argmax(dist[impact:f1])))))
 
     hips = yaw(pts[:, L.LEFT_HIP], pts[:, L.RIGHT_HIP])
     shoulders = yaw(pts[:, L.LEFT_SHOULDER], pts[:, L.RIGHT_SHOULDER])

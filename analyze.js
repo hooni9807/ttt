@@ -2,6 +2,7 @@
 // 한쪽을 고치면 다른 쪽도 고칠 것 — test_swing.py 가 두 결과를 대조한다.
 export const PHASES = ["백스윙", "임팩트", "피니시"];
 export const CHAIN = ["골반", "어깨", "팔꿈치", "손목"];
+const BACK_SEC = 0.8, FOLLOW_SEC = 0.6; // 백스윙·피니시를 찾는 범위(임팩트 기준 초)
 const J = {
   LEFT_SHOULDER: 11, RIGHT_SHOULDER: 12, LEFT_ELBOW: 13, RIGHT_ELBOW: 14, LEFT_WRIST: 15, RIGHT_WRIST: 16,
   LEFT_HIP: 23, RIGHT_HIP: 24, LEFT_KNEE: 25, RIGHT_KNEE: 26, LEFT_ANKLE: 27, RIGHT_ANKLE: 28,
@@ -63,7 +64,9 @@ export function analyze(pts, fps, hand = "R") {
   // 임팩트 = 손목이 가장 빠른 순간, 백스윙/피니시 = 그 앞뒤로 손목이 가장 멀리 간 순간
   const impact = argmax(speed);
   const dist = wrist.map(p => norm(sub(p, wrist[impact])));
-  const phases = { 백스윙: argmax(dist.slice(0, impact + 1)), 임팩트: impact, 피니시: impact + argmax(dist.slice(impact)) };
+  // 영상 속 다른 움직임을 빼려고 임팩트 앞 0.8초, 뒤 0.6초 안에서만 찾는다
+  const b0 = Math.max(0, impact - Math.trunc(BACK_SEC * fps)), f1 = Math.min(wrist.length, impact + Math.trunc(FOLLOW_SEC * fps) + 1);
+  const phases = { 백스윙: b0 + argmax(dist.slice(b0, impact + 1)), 임팩트: impact, 피니시: impact + argmax(dist.slice(impact, f1)) };
 
   const angle = (A, B, C) => A.map((a, i) => {
     const v1 = sub(a, B[i]), v2 = sub(C[i], B[i]);

@@ -27,7 +27,8 @@ rotate([L.LEFT_SHOULDER, L.RIGHT_SHOULDER], 72)
 pts[:, L.RIGHT_WRIST, 0] += 0.6 * np.tanh((t - 80) / 4)  # 손목 최고속도 = 프레임 80
 
 m = analyze(pts, FPS)
-assert m["phases"] == {"백스윙": 0, "임팩트": 80, "피니시": N - 1}, m["phases"]
+# 백스윙·피니시는 임팩트 앞 0.8초(48프레임), 뒤 0.6초(36프레임) 안에서만 찾는다
+assert m["phases"] == {"백스윙": 32, "임팩트": 80, "피니시": 116}, m["phases"]
 assert abs(m["chain_peaks"]["골반"] - 65) <= 1 and abs(m["chain_peaks"]["어깨"] - 72) <= 1, m["chain_peaks"]
 assert m["chain_peaks"]["골반"] < m["chain_peaks"]["어깨"] < m["chain_peaks"]["손목"]
 

@@ -215,7 +215,7 @@ Two families. Table tops, pose plates, video frames, and the focus ring use a ne
 The progress rail and the scrubber are the same device: a 3px line with a filled white portion and an orange ball riding it. While waiting for an unknown duration the ball rolls back and forth (1.4s, `cubic-bezier(.16,1,.3,1)`, alternate). In the power-chain chart each joint lane is a thin white track with white peak dots and a short orange tick at the impact end.
 
 ### 3D Viewer
-Clear colour Viewer Table Blue, floor-navy ground, a Table Blue table top with white boundary and net lines, white skeleton bones and joints, an orange impact sphere, and a wrist trail coloured from Slow Trail Blue to Ball Orange by speed.
+Clear colour Viewer Table Blue over a floor-navy ground with one translucent white ring under the feet; no table is drawn, because a single camera cannot tell where the table is. The body is a lit mannequin: white cylinder bones and sphere joints (bone radius ~3cm, joints ~4cm, head 10cm), with the hitting arm in a warm tint (#FFB877). The wrist trail covers only backswing→finish as a 16mm tube coloured from Slow Trail Blue to Ball Orange by speed: the whole path sits at 25% opacity and the part already played draws solid. An orange sphere marks impact. The view opens from the video camera's position; pill buttons (영상 시점 / 옆 / 위) ease the camera to presets over 450ms, and dragging clears the selection.
 
 ## Do's and Don'ts
 

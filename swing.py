@@ -173,7 +173,7 @@ def main():
         "frames": np.round(pts, 3).tolist(), "speed": np.round(speed, 2).tolist(),
         "metrics": m, "report": text,
     }, ensure_ascii=False))
-    print(f"\n저장: {out}  (웹 페이지의 "분석 JSON 열기"로 3D 보기)")
+    print(f"\n저장: {out}  (웹 페이지의 '분석 JSON 열기'로 3D 보기)")
 
 
 if __name__ == "__main__":

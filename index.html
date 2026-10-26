@@ -106,17 +106,6 @@ if (/KAKAOTALK/i.test(navigator.userAgent)) window.openInChrome();
   .coach-note { font-size: 13px; color: var(--ink-2); }
   .coach-text { white-space: pre-line; font-size: 16px; line-height: 1.7; padding: 14px 16px; border-radius: 10px; background: var(--table-deep); border: 2px solid rgba(255,255,255,.3); max-width: 46em; }
   .coach-text small { display: block; margin-top: 8px; font-size: 12px; color: var(--ink-3); }
-  /* 여러 번 친 영상: 스윙 고르기 */
-  .swings { padding: 14px 16px 12px; border-bottom: 3px solid var(--line); }
-  .swings-title { font-size: 14px; color: var(--ink-2); margin-bottom: 10px; }
-  .swings-title b { color: var(--ink); }
-  .swing-list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
-  .swing-list button { flex: none; display: grid; gap: 2px; min-width: 104px; min-height: 56px; padding: 8px 14px; text-align: left;
-    border-radius: 12px; border: 2px solid rgba(255,255,255,.45); background: var(--table-deep); cursor: pointer; }
-  .swing-list button b { font-size: 15px; }
-  .swing-list button span { font-size: 12px; color: var(--ink-2); }
-  .swing-list button[aria-pressed=true] { border-color: var(--ball); box-shadow: inset 0 0 0 1px var(--ball); }
-  .swing-list button[aria-pressed=true] b { color: var(--ball); }
   .account { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: -2px 0 14px; }
   .account .ghost-btn { min-height: 44px; padding: 0 16px; font-size: 15px; }
   .account-note, .who { font-size: 14px; color: var(--ink-2); }
@@ -370,10 +359,6 @@ if (/KAKAOTALK/i.test(navigator.userAgent)) window.openInChrome();
     <section id="result" hidden aria-label="분석 결과">
       <div class="table stage" id="stage">
         <!-- 화면은 하나. 아래 버튼(여러 개 선택)으로 보이는 것을 바꾼다 -->
-        <div class="swings" id="swings" hidden>
-          <p class="swings-title">이 영상에서 스윙 <b id="swingCount"></b>개를 찾았어요. 볼 스윙을 고르세요.</p>
-          <div class="swing-list" id="swingList" role="group" aria-label="스윙 선택"></div>
-        </div>
         <div class="screen" id="screen">
           <div id="view" aria-label="3D 스윙. 드래그로 돌리고 두 손가락이나 휠로 확대합니다."></div>
           <div class="vbox" id="vbox"><canvas id="overlay" aria-hidden="true"></canvas></div>
@@ -480,7 +465,7 @@ if (/KAKAOTALK/i.test(navigator.userAgent)) window.openInChrome();
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script type="module">
 import { FilesetResolver, PoseLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/vision_bundle.mjs";
-import { CHAIN, PHASES, analyze, evaluate, findSwings, report, roundHalfEven, smooth, wristIndex } from "./analyze.js";
+import { CHAIN, PHASES, analyze, evaluate, report, roundHalfEven, smooth, wristIndex } from "./analyze.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm";
@@ -890,32 +875,13 @@ function load(d) {
 // current: { pts, fps, note, hasVideo } — 손잡이를 바꾸면 다시 계산
 function finish() {
   const { pts, pts2d, fps, note, hasVideo } = current, hd = hand();
-  // 여러 번 친 영상이면 고른 스윙(current.impact) 기준, 안 골랐으면 가장 빠른 스윙
-  const first = analyze(pts, fps, hd);
-  const swings = findSwings(first.speed, fps);
-  const m = current.impact == null ? first : analyze(pts, fps, hd, current.impact);
-  renderSwings(swings, m.phases["임팩트"], fps);
+  const m = analyze(pts, fps, hd);
   const { speed, series } = m;
   delete m.speed; delete m.series;
   load({
     fps, connections: CONNECTIONS, wrist_index: wristIndex(hd),
     frames: pts, frames2d: pts2d, speed, series, metrics: m, report: report(m, fps, ref, tips), note, hasVideo,
   });
-}
-
-function renderSwings(swings, impact, fps) {
-  $("swings").hidden = swings.length < 2;
-  if (swings.length < 2) return;
-  $("swingCount").textContent = swings.length;
-  const fastest = Math.max(...swings.map(x => x.speed));
-  $("swingList").replaceChildren(...swings.map((sw, i) => {
-    const t = sw.impact / fps, on = Math.abs(sw.impact - impact) <= 1;
-    const b = h("button", { type: "button", "aria-pressed": String(on) },
-      h("b", {}, `${i + 1}번 스윙${sw.speed === fastest ? " · 가장 빠름" : ""}`),
-      h("span", {}, `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")} · 손목 ${sw.speed.toFixed(1)} m/s`));
-    b.onclick = () => { if (busy) return; current.impact = sw.impact; finish(); };
-    return b;
-  }));
 }
 
 // ---------- 영상 → 3D 자세 ----------

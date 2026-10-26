@@ -79,17 +79,6 @@ assert score(sm, sref) == (6.7, [("힘 전달", 10.0, 10), ("프로 범위", 5.0
 sm["chain_peaks"]["팔꿈치"] = 5
 assert score(sm, {}) == (6.7, [("힘 전달", 6.7, 10)]), score(sm, {})
 
-# 여러 번 친 영상: 손목이 두 번 휘두르면 스윙 2개를 찾고, 고른 스윙 기준으로 분석한다
-from swing import find_swings
-
-two = pts.copy()
-two[:, L.RIGHT_WRIST, 0] += 0.4 * np.tanh((t - 30) / 3)  # 프레임 30 에 느린 스윙 하나 더 (80 은 원래 스윙)
-mm2 = analyze(two, FPS)
-sw = find_swings(mm2["speed"], FPS)
-assert len(sw) == 2 and abs(sw[0]["impact"] - 30) <= 1 and abs(sw[1]["impact"] - 80) <= 1, sw  # 같은 속도의 이웃 프레임이 있어 ±1
-assert analyze(two, FPS, impact=sw[0]["impact"])["phases"]["임팩트"] == sw[0]["impact"]
-assert mm2["phases"]["임팩트"] == 80  # 고르지 않으면 가장 빠른 스윙
-
 # 웹(analyze.js)이 Python 과 같은 결과를 내는지 대조 (node 가 있을 때)
 import json, shutil, subprocess, tempfile
 from pathlib import Path
@@ -102,9 +91,8 @@ if shutil.which("node"):
     tilted = pts.copy()
     ang = np.pi * (0.5 + 0.5 * np.tanh((t - 80.3) / 6))[:, None]  # 80.3: 두 프레임 속도가 똑같이 최대가 되지 않게
     tilted[:, L.RIGHT_WRIST] = pose[L.RIGHT_SHOULDER] + 0.5 * (np.cos(ang) * u + np.sin(ang) * w)
-    for fps, data in ((60, holes), (240, holes), (60, tilted), (60, two)):
+    for fps, data in ((60, holes), (240, holes), (60, tilted)):
         r = analyze(smooth(data, fps), fps)
-        r["swings"] = find_swings(r["speed"], fps)
         r.pop("speed")
         cases.append({"fps": fps, "expected": r, "report": report(r, fps, ref_t),
                       "pts": [None if np.isnan(f).all() else f.tolist() for f in data]})

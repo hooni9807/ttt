@@ -80,20 +80,7 @@ def yaw(left, right):
     return np.degrees(np.unwrap(np.arctan2(d[:, 2], d[:, 0])))
 
 
-def find_swings(speed, fps):
-    """여러 번 친 영상에서 스윙 찾기 (analyze.js findSwings 와 같은 규칙). 시간순 [{impact, speed}]"""
-    thr, gap = max(0.4 * float(np.max(speed)), 1.0), round(0.6 * fps)
-    e = 1e-9  # 이보다 작은 차이는 같은 값 (JS 와 끝자리 차이)
-    peaks = [i for i in range(1, len(speed) - 1)
-             if speed[i] >= thr - e and speed[i] >= speed[i - 1] - e and speed[i] > speed[i + 1] + e]
-    kept = []
-    for p in sorted(peaks, key=lambda i: (-speed[i], i)):
-        if all(abs(p - q) >= gap for q in kept):
-            kept.append(p)
-    return [{"impact": i, "speed": float(speed[i])} for i in sorted(kept)]
-
-
-def analyze(pts, fps, hand="R", impact=None):
+def analyze(pts, fps, hand="R"):
     side = "RIGHT" if hand == "R" else "LEFT"
     J = lambda name: pts[:, L[f"{side}_{name}"]]
     wrist = J("WRIST")
@@ -101,7 +88,7 @@ def analyze(pts, fps, hand="R", impact=None):
 
     # 임팩트 = 손목이 가장 빠른 순간, 백스윙/피니시 = 그 앞뒤로 손목이 가장 멀리 간 순간
     # ponytail: 스윙 하나만 있다고 가정, 여러 번 치는 영상은 스윙 구간 분할 필요
-    impact = int(np.argmax(speed)) if impact is None else impact
+    impact = int(np.argmax(speed))
     dist = np.linalg.norm(wrist - wrist[impact], axis=1)
     # 영상 속 다른 움직임(걷기, 공 줍기)을 빼려고 임팩트 앞 0.8초, 뒤 0.6초 안에서만 찾는다
     # ponytail: 포핸드 기준 고정 창, 느린 스윙(커트·로브)이 잘리면 늘릴 것

@@ -1,6 +1,6 @@
 // analyze.js 결과가 swing.py 와 같은지 대조. test_swing.py 가 픽스처를 만들어 실행한다.
 import { readFileSync } from "node:fs";
-import { analyze, findSwings, report, smooth } from "./analyze.js";
+import { analyze, report, smooth } from "./analyze.js";
 
 const fx = JSON.parse(readFileSync(process.argv[2], "utf8"));
 const tips = JSON.parse(readFileSync(new URL("./tips.json", import.meta.url), "utf8"));
@@ -13,10 +13,6 @@ for (const c of fx.cases) {
   if (JSON.stringify(m.chain_peaks) !== JSON.stringify(py.chain_peaks)) fail("chain_peaks");
   if (m.chain_ok !== py.chain_ok) fail("chain_ok");
   if (m.swing_plane !== py.swing_plane) fail("swing_plane");
-  const sw = findSwings(m.speed, c.fps);
-  if (JSON.stringify(sw.map(x => x.impact)) !== JSON.stringify(py.swings.map(x => x.impact))) fail("swings");
-  // 고른 스윙(첫 번째)으로 다시 분석해도 Python 과 같은 구간이 나와야 한다
-  if (analyze(smooth(c.pts, c.fps), c.fps, "R", sw[0].impact).phases.임팩트 !== sw[0].impact) fail("impactAt");
   if (Math.abs(m.impact_speed - py.impact_speed) > 0.011) fail("impact_speed");
   for (const ph in py.angles) for (const k in py.angles[ph])
     if (Math.abs(m.angles[ph][k] - py.angles[ph][k]) > 1) fail(`angle ${ph} ${k}`);

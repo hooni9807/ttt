@@ -54,22 +54,7 @@ export function smooth(pts, fps) {
   return out;
 }
 
-// 여러 번 친 영상에서 스윙 찾기: 손목 속도가 국소 최대이면서 가장 빠른 스윙의 40% 이상(최소 1 m/s)인 순간.
-// 0.6초 안에 붙은 봉우리는 더 빠른 하나만 남긴다. 반환: 시간순 [{ impact, speed }]
-export function findSwings(speed, fps) {
-  const max = Math.max(...speed), thr = Math.max(0.4 * max, 1), gap = Math.round(0.6 * fps);
-  const peaks = [];
-  // 1e-9 보다 작은 차이는 같은 값으로 본다 (Python 과 계산 방식이 달라 끝자리가 다를 수 있어서)
-  const E = 1e-9;
-  for (let i = 1; i < speed.length - 1; i++) if (speed[i] >= thr - E && speed[i] >= speed[i - 1] - E && speed[i] > speed[i + 1] + E) peaks.push(i);
-  peaks.sort((a, b) => speed[b] - speed[a] || a - b);
-  const kept = [];
-  for (const p of peaks) if (kept.every(q => Math.abs(p - q) >= gap)) kept.push(p);
-  return kept.sort((a, b) => a - b).map(i => ({ impact: i, speed: speed[i] }));
-}
-
-// impact: 분석할 스윙의 임팩트 프레임 (없으면 가장 빠른 스윙)
-export function analyze(pts, fps, hand = "R", impactAt = null) {
+export function analyze(pts, fps, hand = "R") {
   const S = hand === "R" ? "RIGHT" : "LEFT";
   const col = idx => pts.map(f => f[idx]);
   const side = name => col(J[`${S}_${name}`]);
@@ -77,7 +62,7 @@ export function analyze(pts, fps, hand = "R", impactAt = null) {
   const speed = wrist.map((p, i) => (i ? norm(sub(p, wrist[i - 1])) * fps : 0));
 
   // 임팩트 = 손목이 가장 빠른 순간, 백스윙/피니시 = 그 앞뒤로 손목이 가장 멀리 간 순간
-  const impact = impactAt ?? argmax(speed);
+  const impact = argmax(speed);
   const dist = wrist.map(p => norm(sub(p, wrist[impact])));
   // 영상 속 다른 움직임을 빼려고 임팩트 앞 0.8초, 뒤 0.6초 안에서만 찾는다
   const b0 = Math.max(0, impact - Math.trunc(BACK_SEC * fps)), f1 = Math.min(wrist.length, impact + Math.trunc(FOLLOW_SEC * fps) + 1);

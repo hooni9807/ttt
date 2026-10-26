@@ -1,0 +1,46 @@
+"""가짜 스윙 데이터로 analyze/smooth 확인. 실행: uv run test_swing.py"""
+import numpy as np
+
+from swing import L, analyze, smooth
+
+FPS, N = 60, 120
+pose = np.zeros((33, 3))
+for name, xyz in {"LEFT_HIP": (-0.1, 0, 0), "RIGHT_HIP": (0.1, 0, 0),
+                  "LEFT_SHOULDER": (-0.2, -0.5, 0), "RIGHT_SHOULDER": (0.2, -0.5, 0),
+                  "RIGHT_ELBOW": (0.3, -0.25, 0.1), "RIGHT_WRIST": (0.4, -0.2, 0.3),
+                  "RIGHT_KNEE": (0.1, 0.45, 0.05), "RIGHT_ANKLE": (0.1, 0.9, 0)}.items():
+    pose[L[name]] = xyz
+pts = np.repeat(pose[None], N, axis=0)
+t = np.arange(N)
+
+
+def rotate(idx, peak):  # 골반/어깨를 y축으로 비틀기, 회전 속도는 peak 프레임에서 최고
+    a = np.radians(40) * np.tanh((t - peak) / 4)
+    for i in idx:
+        x, z = pose[i, 0], pose[i, 2]
+        pts[:, i, 0] = x * np.cos(a) - z * np.sin(a)
+        pts[:, i, 2] = x * np.sin(a) + z * np.cos(a)
+
+
+rotate([L.LEFT_HIP, L.RIGHT_HIP], 65)
+rotate([L.LEFT_SHOULDER, L.RIGHT_SHOULDER], 72)
+pts[:, L.RIGHT_WRIST, 0] += 0.6 * np.tanh((t - 80) / 4)  # 손목 최고속도 = 프레임 80
+
+m = analyze(pts, FPS)
+assert m["phases"] == {"백스윙": 0, "임팩트": 80, "피니시": N - 1}, m["phases"]
+assert abs(m["chain_peaks"]["골반"] - 65) <= 1 and abs(m["chain_peaks"]["어깨"] - 72) <= 1, m["chain_peaks"]
+assert m["chain_peaks"]["골반"] < m["chain_peaks"]["어깨"] < m["chain_peaks"]["손목"]
+
+# 사람이 안 잡힌 프레임은 보간되어 임팩트가 그대로 나와야 함
+holes = pts.copy()
+holes[[10, 11, 50, 81]] = np.nan
+assert analyze(smooth(holes, FPS), FPS)["phases"]["임팩트"] in (79, 80, 81)
+
+# 사람이 아예 없으면 친절한 에러
+try:
+    smooth(np.full((N, 33, 3), np.nan), FPS)
+    raise AssertionError("ValueError 가 나야 함")
+except ValueError:
+    pass
+
+print("ok")

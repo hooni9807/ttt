@@ -218,6 +218,8 @@ if (/KAKAOTALK/i.test(navigator.userAgent)) window.openInChrome();
   .score-note { font-size: 13px; color: var(--ink-2); }
   .fb li { padding: 18px 0; border-top: 1px solid rgba(255,255,255,.25); }
   .fb li:first-child { border-top: 0; padding-top: 0; }
+  .fb .at { margin-left: auto; min-height: 36px; padding: 4px 12px; border-radius: 999px; border: 2px solid var(--ball); background: none; color: var(--ball); font: inherit; font-weight: 700; cursor: pointer; }
+  .fb .at:hover, .fb .at:focus-visible { background: var(--ball); color: var(--table-deep); }
   .fb h3 { display: flex; gap: 8px; align-items: center; font-size: 15px; color: var(--warn); margin-bottom: 6px; }
   .fb p { font-size: 20px; font-weight: 700; line-height: 1.45; max-width: 36em; }
   .fb .detail { font-size: 14px; font-weight: 400; color: var(--ink-2); margin-top: 8px; }
@@ -382,7 +384,7 @@ if (/KAKAOTALK/i.test(navigator.userAgent)) window.openInChrome();
         <div class="controls">
           <button type="button" class="icon-btn" id="play" aria-label="재생"><svg class="icon"><use href="#i-play"/></svg></button>
           <input type="range" id="seek" min="0" value="0" aria-label="프레임 이동">
-          <select id="rate" aria-label="재생 속도"><option value="0.1">0.1배</option><option value="0.25" selected>0.25배</option><option value="0.5">0.5배</option><option value="1">1배</option></select>
+          <select id="rate" aria-label="재생 속도"><option value="0.1">0.1배</option><option value="0.25">0.25배</option><option value="0.5" selected>0.5배</option><option value="1">1배</option></select>
         </div>
         <div class="phases" role="group" aria-label="구간으로 이동">
           <button type="button" data-ph="백스윙" aria-pressed="false">백스윙</button>
@@ -753,18 +755,25 @@ const gap = (v, r, metric) => `${Math.round(v < r.min ? r.min - v : v - r.max)}�
 const chainMs = k => data.metrics.chain_ms?.[k] ?? ms(data.metrics.chain_peaks[k]);
 const sign = t => (t > 0 ? "+" : "") + t;
 
+// "1.23초" 버튼: 누르면 그 순간으로 영상·3D 를 옮기고 화면을 영상 쪽으로 올린다
+function atTime(phase) {
+  const f = data.metrics.phases[phase], b = h("button", { type: "button", class: "at", "aria-label": `${phase} 순간 영상으로 이동` }, `${(f / data.fps).toFixed(2)}초`);
+  b.onclick = () => { video.pause(); go(f); $("stage").scrollIntoView({ behavior: "smooth", block: "start" }); };
+  return b;
+}
+
 function renderFeedback() {
   const items = evalr.rows.filter(r => r.tip).map(r => h("li", {},
-    h("h3", {}, icon("alert"), `${r.phase} · ${r.metric}`),
+    h("h3", {}, icon("alert"), `${r.phase} · ${r.metric}`, atTime(r.phase)),
     h("p", {}, r.tip),
     h("p", { class: "detail" }, `내 스윙 ${r.value}° · 프로 ${r.ref.min}~${r.ref.max}° · ${gap(r.value, r.ref, r.metric)}`)));
   const pl = evalr.plane;
   if (pl.tip) items.push(h("li", {},
-    h("h3", {}, icon("alert"), "스윙 · 스윙 면 기울기"),
+    h("h3", {}, icon("alert"), "스윙 · 스윙 면 기울기", atTime("임팩트")),
     h("p", {}, pl.tip),
     h("p", { class: "detail" }, `내 스윙 ${pl.value}° · 프로 ${pl.ref.min}~${pl.ref.max}° · ${gap(pl.value, pl.ref, "스윙 면 기울기")}`)));
   if (evalr.chainTip) items.push(h("li", {},
-    h("h3", {}, icon("alert"), "힘 전달 타이밍"),
+    h("h3", {}, icon("alert"), "힘 전달 타이밍", atTime("임팩트")),
     h("p", {}, evalr.chainTip),
     h("p", { class: "detail" }, evalr.chain.filter(c => c.ref?.status === "low" || c.ref?.status === "high")
       .map(c => `${c.part} ${sign(c.ms)}ms (프로 ${sign(c.ref.min)}~${sign(c.ref.max)}ms)`).join(" · "))));
@@ -1334,7 +1343,7 @@ $("save").onclick = () => {
   const a = h("a", { href: URL.createObjectURL(new Blob([JSON.stringify(out)], { type: "application/json" })), download: "ttt-swing.json" });
   a.click();
 };
-// 스윙은 순식간이라 기본은 슬로우(0.25배). 영상을 새로 열어도 고른 속도가 유지되게 기본값도 같이 바꾼다
+// 스윙은 순식간이라 기본은 슬로우(0.5배). 영상을 새로 열어도 고른 속도가 유지되게 기본값도 같이 바꾼다
 const applyRate = () => { video.defaultPlaybackRate = video.playbackRate = +$("rate").value; };
 $("rate").onchange = applyRate;
 $("seek").oninput = e => go(+e.target.value);

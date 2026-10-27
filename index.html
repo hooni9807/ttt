@@ -1283,6 +1283,15 @@ $("logout").onclick = async () => { const { auth, au } = await fb(); await auth.
 // ---------- AI 코치 (Cloudflare Worker + Workers AI) ----------
 // 로그인한 사람만, 숫자·판정만 보낸다(영상·좌표 X). 서버가 하루 횟수를 제한한다.
 const COACH_URL = "https://ttt-coach.dchkimppi.workers.dev";
+// 구간마다 손목(라켓)이 몸의 어느 높이에, 몸 중심에서 얼마나 떨어져 있었는지. 3D 좌표는 엉덩이 중심 기준 m, y 는 아래가 +
+function wristPlace(f) {
+  const p = data.frames[f], w = p[data.wrist_index], avg = (a, b) => (p[a][1] + p[b][1]) / 2;
+  const knee = avg(25, 26), hip = avg(23, 24), sh = avg(11, 12), nose = p[0][1], y = w[1];
+  const height = y > knee ? "무릎보다 아래" : y > (knee + hip) / 2 ? "무릎 높이" : y > hip ? "허벅지 높이"
+    : y > (hip + sh) / 2 ? "허리 높이" : y > sh ? "가슴 높이" : y > nose ? "어깨~턱 높이" : "이마 높이 이상";
+  const cx = (p[23][0] + p[24][0]) / 2, cz = (p[23][2] + p[24][2]) / 2;
+  return { height, dist: Math.round(Math.hypot(w[0] - cx, w[2] - cz) * 20) * 5 }; // 5cm 단위
+}
 function coachPayload() {
   const m = data.metrics;
   const off = evalr.rows.filter(r => r.ref && (r.ref.status === "low" || r.ref.status === "high"))
@@ -1291,6 +1300,7 @@ function coachPayload() {
   if (pl.ref && (pl.ref.status === "low" || pl.ref.status === "high")) off.push({ phase: "스윙", metric: "스윙 면 기울기", status: pl.ref.status, value: pl.value, min: pl.ref.min, max: pl.ref.max });
   return {
     angles: m.angles, chainOk: evalr.chainOk,
+    place: Object.fromEntries(PHASES.map(ph => [ph, wristPlace(m.phases[ph])])),
     timing: Object.fromEntries(evalr.chain.map(c => [c.part, { ms: chainMs(c.part), status: c.ref?.status ?? null, min: c.ref?.min ?? null, max: c.ref?.max ?? null }])),
     speed: m.impact_speed, plane: m.swing_plane ?? null, score: evalr.score.total,
     hand: data.wrist_index === wristIndex("L") ? "L" : "R", off,

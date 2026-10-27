@@ -54,8 +54,15 @@ function clean(b) {
     if (![...PHASES, "스윙"].includes(o.phase) || ![...ANGLES, "스윙 면 기울기"].includes(o.metric) || !["low", "high"].includes(o.status)) throw new Error("off");
     return { phase: o.phase, metric: o.metric, status: o.status, value: num(o.value, 0, 180), min: num(o.min, 0, 180), max: num(o.max, 0, 180) };
   });
+  // 손목 위치(선택). 높이는 정해진 말만, 거리는 cm
+  const HEIGHTS = ["무릎보다 아래", "무릎 높이", "허벅지 높이", "허리 높이", "가슴 높이", "어깨~턱 높이", "이마 높이 이상"];
+  const place = {};
+  for (const ph of PHASES) {
+    const p = b?.place?.[ph];
+    if (p && HEIGHTS.includes(p.height)) place[ph] = { height: p.height, dist: num(p.dist, 0, 200) };
+  }
   return {
-    angles, timing, off,
+    angles, timing, off, place,
     hand: b.hand === "L" ? "왼손" : "오른손",
     speed: num(b.speed, 0, 40), plane: b.plane == null ? null : num(b.plane, 0, 90),
     chainOk: typeof b.chainOk === "boolean" ? b.chainOk : null, score: num(b.score, 0, 10),
@@ -106,14 +113,25 @@ const MEANING = {
   },
 };
 
+// 각도를 몸 모양으로 바꿔 말하기 (코치가 "팔이 ㄴ자" 처럼 말할 수 있게)
+function shape(metric, v) {
+  if (metric === "팔꿈치") return v < 80 ? "팔이 V자로 많이 접힘" : v < 100 ? "팔이 ㄴ자(직각)" : v < 130 ? "직각보다 조금 펴진 팔" : v < 160 ? "팔이 대부분 펴짐" : "팔이 거의 일자로 펴짐";
+  if (metric === "무릎") return v < 110 ? "의자에 앉듯 깊게 굽힘" : v < 135 ? "무릎을 확실히 굽힌 낮은 자세" : v < 155 ? "무릎을 살짝 굽힘" : "무릎이 거의 펴져 선 자세";
+  if (metric === "몸통 꼬임") return v < 10 ? "어깨와 골반이 같은 방향(꼬임 거의 없음)" : v < 30 ? "어깨가 골반보다 조금 더 돌아감" : v < 50 ? "어깨가 골반보다 확실히 더 돌아가 가슴이 옆을 봄" : "어깨가 등 쪽으로 크게 돌아감";
+  if (metric === "스윙 면 기울기") return v < 25 ? "거의 수평으로 앞으로 미는 궤도" : v < 45 ? "앞쪽 위로 비스듬히 올라가는 궤도" : v < 65 ? "대각선보다 더 세워 올라가는 궤도" : "거의 아래에서 위로 수직에 가까운 궤도";
+  return "";
+}
+
 function prompt(d) {
   const r1 = x => Math.round(x * 10) / 10;
   // 고칠 점: 각도·스윙 면은 범위 밖 정도가 큰 순서, 목표는 범위 가운데
   const issues = d.off.map(o => {
     const target = Math.round((o.min + o.max) / 2), need = Math.round(o.status === "low" ? o.min - o.value : o.value - o.max);
     const [cause, effect, fix] = MEANING[`${o.phase} ${o.metric}`]?.[o.status] ?? ["", "", ""];
+    const pl = d.place[o.phase];
     return { size: need / (o.max - o.min), text:
-      `- ${o.phase === "스윙" ? "" : o.phase + " "}${o.metric}: 지금 ${o.value}°, 도 대표 선수 ${o.min}~${o.max}° → 최소 ${need}° ${o.status === "low" ? "더 크게" : "더 작게"}, 목표 약 ${target}°` +
+      `- ${o.phase === "스윙" ? "" : o.phase + " "}${o.metric}: 지금 ${o.value}°(${shape(o.metric, o.value)}), 도 대표 선수 ${o.min}~${o.max}° → 최소 ${need}° ${o.status === "low" ? "더 크게" : "더 작게"}, 목표 약 ${target}°(${shape(o.metric, target)})` +
+      (pl ? `\n  이때 손목 위치: ${pl.height}, 몸 중심에서 약 ${pl.dist}cm` : "") +
       `\n  원인 힌트: ${cause}\n  결과 힌트: ${effect}\n  해결 힌트: ${fix}` };
   }).sort((a, b) => b.size - a.size).map(x => x.text);
   if (d.speed < 5.6) issues.push(`- 임팩트 손목 속도: 지금 ${d.speed} m/s, 도 대표 선수 5.6~6.9 m/s → ${r1(5.6 - d.speed)} m/s 더 빠르게` +
@@ -130,7 +148,8 @@ function prompt(d) {
     `손잡이: ${d.hand}잡이 (포핸드 드라이브)`,
     `임팩트 손목 속도: ${d.speed} m/s (도 대표 선수 5.6~6.9 m/s)`,
     `스윙 면 기울기: ${d.plane ?? "측정 불가"}° (0° 수평으로만 나감, 90° 위로만 올라감)`,
-    ...PHASES.map(ph => `${ph} 각도: ` + ANGLES.map(k => `${k} ${d.angles[ph][k]}°`).join(", ")),
+    ...PHASES.map(ph => `${ph} 각도: ` + ANGLES.map(k => `${k} ${d.angles[ph][k]}°(${shape(k, d.angles[ph][k])})`).join(", ") +
+      (d.place[ph] ? ` / 손목 위치: ${d.place[ph].height}, 몸 중심에서 약 ${d.place[ph].dist}cm` : "")),
     "(팔꿈치 180°=다 펴짐, 무릎 180°=다 펴짐, 몸통 꼬임=어깨선과 골반선이 엇갈린 각도)",
     "고칠 점(중요한 순서):", ...(issues.length ? issues : ["- 없음"]),
     `프로 범위 안인 항목: ${good.join(", ") || "없음"}`,
@@ -138,7 +157,7 @@ function prompt(d) {
   return [
     { role: "system", content: "너는 탁구장에서 동호인 옆에 서서 포핸드 드라이브를 봐 주는 코치다. 칭찬보다 고칠 점 피드백이 중심이다. " +
       "고칠 점마다 원인, 그래서 생기는 결과, 해결 방법이 한 흐름으로 이어지게 말한다. 측정 수치(지금 몇 °)와 목표 수치(몇 °까지, 몇 ° 더)를 꼭 넣고, " +
-      "라켓이나 몸이 어디까지 가야 하는지(허리 옆, 무릎 높이, 이마 앞 등) 구체적으로 말한다. " +
+      "각도는 반드시 몸 모양으로 풀어서 말하고(예: 112°면 '직각보다 조금 펴진 팔'), 측정된 손목 위치(높이, 몸 중심에서 몇 cm)를 넣어 지금 라켓이 어디 있고 어디까지 가야 하는지 말한다. " +
       "주어진 수치와 힌트만 근거로 쓰고, 없는 수치는 지어내지 않는다. 숫자는 주어진 값을 그대로 쓴다. 의학적 진단은 하지 않는다.\n" +
       "말투 규칙: 한국어 해요체, 사람이 옆에서 말하듯 자연스럽게 이어서 말한다. '원인:', '결과:', '해결:' 같은 꼬리표, 번호, 글머리표, 볼드, 이모지를 쓰지 않는다. " +
       "'그래서', '그러니까', '그러면'처럼 말로 잇는 접속어를 쓰되 같은 접속어를 반복하지 않는다. 짧은 문장과 긴 문장을 섞는다. " +

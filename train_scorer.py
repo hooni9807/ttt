@@ -21,8 +21,8 @@ def features(m, fps):
     for ph in PHASES:
         for k in ANGLES:
             names.append(f"{ph} {k}"); vals.append(m["angles"][ph][k])
-    names += ["손목 속도", "스윙 면", "힘 전달 순서"]
-    vals += [m["impact_speed"], m["swing_plane"] if m.get("swing_plane") is not None else np.nan, float(m["chain_ok"])]
+    names += ["손목 속도", "스윙 면"]
+    vals += [m["impact_speed"], m["swing_plane"] if m.get("swing_plane") is not None else np.nan]
     imp = m["phases"]["임팩트"]
     for k in CHAIN:  # 각 부위가 가장 빨랐던 시점(임팩트 기준, 초)
         names.append(f"{k} 타이밍"); vals.append((m["chain_peaks"][k] - imp) / fps)

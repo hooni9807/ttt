@@ -31,23 +31,13 @@ uv run swing.py 내스윙.mp4 --ref my_pro.json      # 직접 만든 프로 범�
 
 ## 프로 기준값
 
-기본으로 `pro_ranges.json`(논문 값)과 비교합니다. 공개 논문 중 이 앱의 지표와 맞는 수치는 아직 적습니다.
+`pro_ranges.json` 은 공개 데이터셋 **Table Tennis Forehand Stroke Mediapipe Datasets** (Lyu et al. 2025, [figshare 28881086](https://figshare.com/articles/dataset/Table_Tennis_Forehand_Stroke_Mediapipe_Datasets/28881086), CC BY 4.0)의 도 대표 여자 선수 34명 포핸드 340개를 TTT 와 같은 코드로 분석한 평균 ± 표준편차입니다. 원 논문: Lyu, Duan, Yang & Ye (2025), *Development of a MediaPipe-based framework for biomechanical quantification of table tennis forehand strokes*, Frontiers in Sports and Active Living.
 
-| 지표 | 기준 | 출처 |
-|---|---|---|
-| 임팩트 손목(손) 속도 | 약 5.5 m/s (참고값) | Bańkosz & Winiarski 2025, *J Sports Sci Med* 24:311 |
-| 백스윙 끝 무릎 각도 | 130~148° | He et al. 2021, *PeerJ* 9:e10841 |
-| 피니시 무릎 각도 | 115~160° | He et al. 2021, *PeerJ* 9:e10841 |
-
-논문은 모션캡처·IMU로 측정해서, 폰 영상 + MediaPipe 값과 오차가 있습니다. 팔꿈치 각도, 몸통 꼬임, 스윙 면 기울기는 공개된 프로 범위를 찾지 못해서 프로 영상으로 직접 만듭니다(`make_ranges.py`가 세 항목 모두 범위를 만듭니다).
-
-```bash
-uv run swing.py 프로1.mp4            # 프로 영상마다 분석 (→ 프로1.json)
-uv run make_ranges.py 프로1.json 프로2.json 프로3.json -o my_pro.json
-uv run swing.py 내스윙.mp4 --ref my_pro.json
-```
-
-프로 영상은 직접 찍었거나 사용 권한이 있는 영상을 쓰세요. 유튜브 영상을 내려받는 건 유튜브 약관 위반이라 자동 수집 기능은 넣지 않았습니다. 같은 각도(측면 등)에서 몸 전체가 나오는 슬로모션 영상일수록 정확합니다.
+- 이 데이터에서 TTT 의 임팩트 판정은 데이터에 표시된 실제 임팩트와 중앙값 2프레임(20ms) 차이였습니다(96%가 3프레임 이내).
+- 데이터는 오른쪽 앞 45°에서 100fps 로 찍었습니다. 사용자 영상의 각도가 다르면 차이가 날 수 있어 참고용입니다.
+- 다시 만들기: figshare 에서 파일을 `data/figshare/` 에 받은 뒤 `uv run --with pandas --with openpyxl build_standard.py data/figshare`
+- 같은 스크립트가 자세 → 공 속도를 맞히는 모델(`ballspeed_model.json`)도 학습하지만, 선수 단위 검증 오차가 3.1 km/h 로 평균만 찍는 것(3.3 km/h)과 큰 차이가 없어 사이트에는 쓰지 않습니다. 가장 큰 관련 요인은 손목 속도였습니다.
+- 직접 찍은 프로 영상으로 기준을 만들려면 `make_ranges.py` 를 씁니다.
 
 ## 촬영 팁
 

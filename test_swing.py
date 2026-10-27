@@ -67,17 +67,18 @@ arc = 0.5 * (np.cos(phi) * u + np.sin(phi) * w)
 assert swing_plane(arc) == 30, swing_plane(arc)
 assert swing_plane(np.linspace(0, 1, 20)[:, None] * u) is None
 
-# 점수: 항목마다 10점. 힘 전달 순서 정상(10), 범위 2개 중 1개 안(5), 손목 속도 기준의 절반(5) → 평균 6.7
+# 점수: 항목마다 10점. 힘 전달 타이밍 2개 다 범위 안(10), 각도 범위 2개 중 1개 안(5), 손목 속도 기준의 절반(5) → 평균 6.7
 from swing import score
 
-sm = {"chain_peaks": {"골반": 1, "어깨": 2, "팔꿈치": 3, "손목": 4}, "impact_speed": 2.75,
+sm = {"chain_ms": {"골반": 50, "어깨": 40, "팔꿈치": -200, "손목": 0}, "impact_speed": 2.75,
       "angles": {"백스윙": {"무릎": 140}, "피니시": {"무릎": 170}}}
 sref = {"impact_speed": {"value": 5.5, "source": "t"},
+        "chain": {"골반": {"min": 20, "max": 80, "source": "t"}, "어깨": {"min": 30, "max": 70, "source": "t"}},
         "angles": {"백스윙": {"무릎": {"min": 130, "max": 148, "source": "t"}}, "피니시": {"무릎": {"min": 115, "max": 160, "source": "t"}}}}
 assert score(sm, sref) == (6.7, [("힘 전달", 10.0, 10), ("프로 범위", 5.0, 10), ("손목 속도", 5.0, 10)]), score(sm, sref)
-# 순서가 하나 어긋나면 힘 전달 6.7, 기준이 없는 항목은 빼고 평균
-sm["chain_peaks"]["팔꿈치"] = 5
-assert score(sm, {}) == (6.7, [("힘 전달", 6.7, 10)]), score(sm, {})
+# 타이밍 하나가 범위 밖이면 힘 전달 5, 기준이 없는 항목은 빼고 평균(기준이 아예 없으면 0점)
+sm["chain_ms"]["어깨"] = -100
+assert score(sm, {"chain": sref["chain"]}) == (5.0, [("힘 전달", 5.0, 10)]), score(sm, {"chain": sref["chain"]})
 
 # 웹(analyze.js)이 Python 과 같은 결과를 내는지 대조 (node 가 있을 때)
 import json, shutil, subprocess, tempfile
@@ -111,11 +112,11 @@ rng = np.random.default_rng(0)
 fake_rows = []
 for _ in range(40):
     mm = {"angles": {ph: {k: float(rng.uniform(60, 170)) for k in ("팔꿈치", "무릎", "몸통 꼬임")} for ph in ("백스윙", "임팩트", "피니시")},
-          "impact_speed": float(rng.uniform(2, 8)), "swing_plane": float(rng.uniform(10, 60)), "chain_ok": bool(rng.random() > .5),
+          "impact_speed": float(rng.uniform(2, 8)), "swing_plane": float(rng.uniform(10, 60)),
           "phases": {"임팩트": 50}, "chain_peaks": {"골반": int(rng.integers(30, 50)), "어깨": int(rng.integers(30, 50)), "팔꿈치": int(rng.integers(30, 50))}}
     fake_rows.append(mm)
 FX = np.array([features(r, 60)[1] for r in fake_rows])
-fy = np.clip(1.0 * FX[:, 9] + 2 * FX[:, 11] - 1, 0, 10)  # 손목 속도와 힘 전달 순서로 정한 점수
+fy = np.clip(1.0 * FX[:, 9] + 20 * FX[:, 11] + 1, 0, 10)  # 손목 속도와 골반 타이밍으로 정한 점수
 assert loo_error(FX, fy, 0.1) < 0.5, loo_error(FX, fy, 0.1)
 FX[0, 10] = np.nan  # 스윙 면 측정 불가여도 예측은 된다
 assert np.isfinite(predict(fit(FX, fy), FX)).all()

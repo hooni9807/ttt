@@ -43,17 +43,22 @@ function clean(b) {
     if (v === null) throw new Error("angles");
     (angles[ph] ??= {})[k] = v;
   }
-  const order = Array.isArray(b?.order) && b.order.length === 4 && b.order.every(x => CHAIN.includes(x)) ? b.order : null;
-  if (!order) throw new Error("order");
+  const timing = {};
+  for (const k of CHAIN) {
+    const t = b?.timing?.[k];
+    const v = num(t?.ms, -600, 400);
+    if (v === null) throw new Error("timing");
+    timing[k] = { ms: v, status: ["ok", "low", "high"].includes(t.status) ? t.status : null, min: num(t.min, -600, 400), max: num(t.max, -600, 400) };
+  }
   const off = (Array.isArray(b?.off) ? b.off : []).slice(0, 10).map(o => {
     if (![...PHASES, "스윙"].includes(o.phase) || ![...ANGLES, "스윙 면 기울기"].includes(o.metric) || !["low", "high"].includes(o.status)) throw new Error("off");
     return { phase: o.phase, metric: o.metric, status: o.status, value: num(o.value, 0, 180), min: num(o.min, 0, 180), max: num(o.max, 0, 180) };
   });
   return {
-    angles, order, off,
+    angles, timing, off,
     hand: b.hand === "L" ? "왼손" : "오른손",
     speed: num(b.speed, 0, 40), plane: b.plane == null ? null : num(b.plane, 0, 90),
-    chainOk: b.chainOk === true, score: num(b.score, 0, 10),
+    chainOk: typeof b.chainOk === "boolean" ? b.chainOk : null, score: num(b.score, 0, 10),
   };
 }
 
@@ -61,16 +66,19 @@ function prompt(d) {
   const lines = [
     `손잡이: ${d.hand}잡이 (포핸드)`,
     `종합 참고 점수: ${d.score ?? "없음"} / 10`,
-    `임팩트 손목 속도: ${d.speed} m/s (프로 참고값 약 5.5 m/s, 측정 방식이 달라 참고만)`,
+    `임팩트 손목 속도: ${d.speed} m/s (도 대표 선수 범위 5.6~6.9 m/s)`,
     `스윙 면 기울기: ${d.plane ?? "측정 불가"}° (0° 수평, 90° 수직)`,
     ...PHASES.map(ph => `${ph} 관절 각도: ` + ANGLES.map(k => `${k} ${d.angles[ph][k]}°`).join(", ")),
-    `힘 전달(각 부위가 가장 빨라진 순서): ${d.order.join(" → ")} (${d.chainOk ? "정상 순서" : "순서 어긋남"})`,
+    "힘 전달 타이밍(각 부위가 가장 빨라진 시점, 임팩트 기준): " + CHAIN.map(k => {
+      const t = d.timing[k];
+      return `${k} ${t.ms}ms` + (t.min == null ? "" : ` (도 대표 선수 ${t.min}~${t.max}ms, ${t.status === "ok" ? "범위 안" : t.status === "low" ? "빠름" : "늦음"})`);
+    }).join(", "),
     d.off.length
       ? "프로 범위를 벗어난 항목: " + d.off.map(o => `${o.phase} ${o.metric} ${o.value}° (프로 ${o.min}~${o.max}°, ${o.status === "low" ? "작음" : "큼"})`).join("; ")
-      : "프로 범위를 벗어난 항목: 없음 (팔꿈치·몸통 꼬임은 기준이 없어 판정하지 않음)",
+      : "프로 범위를 벗어난 항목: 없음",
   ];
   return [
-    { role: "system", content: "너는 생활체육 탁구 동호인을 돕는 친절한 코치다. 아래 측정값만 근거로 조언한다. 측정값에 없는 내용은 지어내지 않는다. 의학적 진단이나 부상 판단은 하지 않는다. 한국어 해요체로 쓴다. 우선순위: 힘 전달 순서가 어긋났으면 그것을 오늘의 과제로 가장 먼저 다루고, 정상이면 프로 범위를 벗어난 항목 중 하나를 고른다. '잘하고 있는 점'은 프로 범위 안에 든 항목이나 정상인 힘 전달 순서처럼 근거가 있는 것에서만 고르고, 근거가 없으면 '꾸준히 영상을 찍어 확인하는 습관'처럼 일반적인 칭찬을 한다." },
+    { role: "system", content: "너는 생활체육 탁구 동호인을 돕는 친절한 코치다. 아래 측정값만 근거로 조언한다. 측정값에 없는 내용은 지어내지 않는다. 의학적 진단이나 부상 판단은 하지 않는다. 한국어 해요체로 쓴다. 우선순위: 관절 각도가 프로 범위를 벗어났으면 그중 하나를 오늘의 과제로 고르고, 없으면 범위를 벗어난 힘 전달 타이밍을 다룬다. '잘하고 있는 점'은 프로 범위 안에 든 항목이나 타이밍처럼 근거가 있는 것에서만 고르고, 근거가 없으면 '꾸준히 영상을 찍어 확인하는 습관'처럼 일반적인 칭찬을 한다." },
     { role: "user", content: `다음은 폰 영상으로 분석한 내 포핸드 스윙 측정값이야.\n${lines.join("\n")}\n\n다음 형식으로 답해 줘. 다른 말은 붙이지 마.\n오늘의 과제: (가장 중요한 한 가지, 한 문장)\n왜 중요해요: (측정값을 근거로 한두 문장)\n연습 방법: (집이나 탁구장에서 할 수 있는 드릴 하나, 횟수 포함)\n잘하고 있는 점: (한 문장)\n/no_think` }, // Qwen3: 생각 과정 없이 바로 답하게
   ];
 }

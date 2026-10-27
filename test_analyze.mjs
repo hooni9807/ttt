@@ -11,7 +11,7 @@ for (const c of fx.cases) {
   const fail = msg => { throw new Error(`fps=${c.fps}: ${msg}\nJS: ${JSON.stringify(shown)}\nPY: ${JSON.stringify(py)}`); };
   if (JSON.stringify(m.phases) !== JSON.stringify(py.phases)) fail("phases");
   if (JSON.stringify(m.chain_peaks) !== JSON.stringify(py.chain_peaks)) fail("chain_peaks");
-  if (m.chain_ok !== py.chain_ok) fail("chain_ok");
+  if (JSON.stringify(m.chain_ms) !== JSON.stringify(py.chain_ms)) fail("chain_ms");
   if (m.swing_plane !== py.swing_plane) fail("swing_plane");
   if (Math.abs(m.impact_speed - py.impact_speed) > 0.011) fail("impact_speed");
   for (const ph in py.angles) for (const k in py.angles[ph])

@@ -79,11 +79,12 @@ export function analyze(pts, fps, hand = "R") {
   const knee = angle(side("HIP"), side("KNEE"), side("ANKLE"));
   const twist = shoulders.map((s, i) => Math.abs(((((s - hips[i] + 180) % 360) + 360) % 360) - 180));
 
-  // 힘 전달: 백스윙~임팩트 사이에서 골반 → 어깨 → 팔꿈치 → 손목 순으로 최고 속도에 도달해야 함
+  // 힘 전달 타이밍: 임팩트 0.5초 전 ~ 0.25초 뒤에서 각 부위가 가장 빨라진 시점 (swing.py 와 같은 규칙).
+  // 공개 데이터(도 대표 선수)에선 골반·어깨 회전이 임팩트 뒤에 가장 빨라서, 교과서식 순서 대신 그 선수들의 타이밍 범위와 비교한다.
   const rate = x => gradient(x).map(g => Math.abs(g) * fps);
-  const b = phases.백스윙;
+  const lo = Math.max(0, impact - Math.floor(0.5 * fps + 0.5)), hi = Math.min(speed.length - 1, impact + Math.floor(0.25 * fps + 0.5));
   const series = [rate(hips), rate(shoulders), rate(elbow), speed];
-  const peaks = Object.fromEntries(CHAIN.map((k, i) => [k, b + argmax(series[i].slice(b, impact + 1))]));
+  const peaks = Object.fromEntries(CHAIN.map((k, i) => [k, lo + argmax(series[i].slice(lo, hi + 1))]));
 
   return {
     impact_speed: Math.round(speed[impact] * 100) / 100,
@@ -92,7 +93,7 @@ export function analyze(pts, fps, hand = "R") {
       팔꿈치: Math.round(elbow[f]), 무릎: Math.round(knee[f]), "몸통 꼬임": Math.round(twist[f]),
     }])),
     chain_peaks: peaks,
-    chain_ok: CHAIN.every((k, i) => !i || peaks[CHAIN[i - 1]] <= peaks[k]),
+    chain_ms: Object.fromEntries(CHAIN.map(k => [k, roundHalfEven(((peaks[k] - impact) / fps) * 1000)])),
     swing_plane: swingPlane(wrist.slice(phases.백스윙, phases.피니시 + 1)),
     speed,
     series: { 팔꿈치: elbow, 무릎: knee, "몸통 꼬임": twist }, // 웹 화면의 프레임별 수치용 (swing.py 에는 없음)
@@ -151,15 +152,20 @@ export function evaluate(m, ref = {}, tips = {}) {
   const pr = m.swing_plane == null ? null : judge(m.swing_plane, ref.swing_plane);
   const plane = { value: m.swing_plane ?? null, ref: pr,
     tip: pr && (pr.status === "low" || pr.status === "high") ? tips["스윙 면 기울기"]?.[pr.status] : undefined };
-  return { speed, rows, plane, chainTip: m.chain_ok ? undefined : tips["힘 전달"], sources: [...sources], score: score(m, ref) };
+  // 힘 전달 타이밍: 부위마다 프로 범위와 비교. 기준이 없으면 chainOk 는 null(판정 안 함)
+  const chain = CHAIN.map(k => ({ part: k, ms: m.chain_ms?.[k], ref: m.chain_ms ? judge(m.chain_ms[k], ref.chain?.[k]) : null }));
+  const judged = chain.filter(c => c.ref?.status && c.ref.status !== "ref");
+  const chainOk = judged.length ? judged.every(c => c.ref.status === "ok") : null;
+  return { speed, rows, plane, chain, chainOk, chainTip: chainOk === false ? tips["힘 전달"] : undefined, sources: [...sources], score: score(m, ref) };
 }
 
 // 참고 점수 (swing.py score 와 같은 규칙). 항목마다 10점 만점이고, 종합은 기준이 있는 항목들의 평균.
-// 힘 전달(3구간 중 순서가 맞는 비율), 프로 범위(범위 안 항목 비율), 손목 속도(프로 기준 대비, 넘으면 만점).
+// 힘 전달(부위별 타이밍이 프로 범위 안인 비율), 프로 범위(각도 범위 안 비율), 손목 속도(프로 기준 대비, 넘으면 만점).
 export function score(m, ref = {}) {
   const r1 = x => roundHalfEven(x * 10) / 10;
-  const pk = m.chain_peaks;
-  const parts = [["힘 전달", (10 * CHAIN.slice(1).filter((k, i) => pk[CHAIN[i]] <= pk[k]).length) / 3, 10]];
+  const parts = [];
+  const ch = Object.entries(ref.chain ?? {}).filter(([k, r]) => r.min !== undefined && m.chain_ms?.[k] !== undefined).map(([k, r]) => [m.chain_ms[k], r]);
+  if (ch.length) parts.push(["힘 전달", (10 * ch.filter(([v, r]) => r.min <= v && v <= r.max).length) / ch.length, 10]);
   const checks = [];
   for (const [ph, rs] of Object.entries(ref.angles ?? {})) {
     for (const [k, r] of Object.entries(rs)) {
@@ -171,6 +177,7 @@ export function score(m, ref = {}) {
   const sp = ref.impact_speed;
   if (sp) parts.push(["손목 속도", 10 * Math.min(1, m.impact_speed / (sp.min ?? sp.value)), 10]);
   const rounded = parts.map(([n, g, mx]) => [n, r1(g), mx]);
+  if (!rounded.length) return { total: 0, parts: [] }; // 비교할 기준이 하나도 없음
   const total = r1((rounded.reduce((s, p) => s + p[1], 0) / rounded.reduce((s, p) => s + p[2], 0)) * 10);
   return { total, parts: rounded };
 }
@@ -189,12 +196,7 @@ export function report(m, fps, ref = {}, tips = {}) {
   const feedback = e.rows.filter(r => r.tip).map(r => `[${r.phase}] ${r.metric}: ${r.tip}`);
   if (e.plane.tip) feedback.push(`[스윙] 스윙 면 기울기: ${e.plane.tip}`);
   if (e.chainTip) feedback.push(`[힘 전달] ${e.chainTip}`);
-  const order = [...CHAIN].sort((x, y) => m.chain_peaks[x] - m.chain_peaks[y]).join(" → ");
-  lines.push(`힘 전달 순서: ${order} ` + (m.chain_ok ? "✓ 정상" : "⚠ 순서가 어긋남 (팔로만 치는 스윙 의심)"));
-  lines.push("  최고속도 시점(임팩트 기준): " + CHAIN.map(k => {
-    const ms = roundHalfEven(((m.chain_peaks[k] - m.phases.임팩트) / fps) * 1000);
-    return `${k} ${ms >= 0 ? "+" : ""}${ms}ms`;
-  }).join(", "));
+  lines.push("힘 전달 타이밍(가장 빨라진 시점, 임팩트 기준): " + e.chain.map(c => `${c.part} ${c.ms >= 0 ? "+" : ""}${c.ms}ms` + mark(c.ref)).join(", "));
   if (feedback.length) lines.push("", "피드백:", ...feedback.map(f => `  - ${f}`));
   if (e.sources.length) lines.push("", "프로 기준 출처:", ...e.sources.map(s => `  - ${s}`));
   return lines.join("\n");

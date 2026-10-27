@@ -247,7 +247,8 @@ if (/KAKAOTALK/i.test(navigator.userAgent)) window.openInChrome();
   .lane > span { font-size: 14px; font-weight: 700; }
   .track { position: relative; height: 40px; }
   .track::before { content: ""; position: absolute; left: 0; right: 0; top: 27px; height: 2px; background: rgba(255,255,255,.35); }
-  .track::after { content: ""; position: absolute; right: 0; top: 18px; width: 2px; height: 20px; background: var(--ball); }
+  .track .band { position: absolute; top: 22px; height: 12px; background: rgba(255,255,255,.18); border-radius: 6px; }
+  .track::after { content: ""; position: absolute; left: 66.67%; top: 18px; width: 2px; height: 20px; background: var(--ball); }
   .dot { position: absolute; top: 20px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: var(--line); }
   .dot em { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
   .dot.flip em { left: auto; right: -2px; transform: none; }
@@ -418,7 +419,7 @@ if (/KAKAOTALK/i.test(navigator.userAgent)) window.openInChrome();
             <thead><tr><th scope="col">항목</th><th scope="col">백스윙</th><th scope="col">임팩트</th><th scope="col">피니시</th></tr></thead>
             <tbody id="cmp"></tbody>
           </table>
-          <p class="fine">프로 기준은 모션캡처·센서로 잰 논문 값이라 폰 영상 분석과 오차가 있어요. 기준이 없는 항목은 수치만 보여 드려요.</p>
+          <p class="fine">프로 기준은 공개 데이터셋(도 대표 여자 선수 34명, 포핸드 340개)을 TTT와 같은 방식으로 분석한 평균 ± 표준편차예요. 촬영 각도가 다르면 차이가 날 수 있어 참고용이에요.</p>
         </section>
         <section>
           <h2>힘 전달 순서</h2>
@@ -747,7 +748,10 @@ function noRef() {
 
 // 프로 범위에서 벗어난 정도를 말로: "7° 더 접힘"
 const GAP = { 팔꿈치: ["더 접힘", "더 펴짐"], 무릎: ["더 굽힘", "더 펴짐"], "몸통 꼬임": ["덜 꼬임", "더 꼬임"], "스윙 면 기울기": ["더 눕힘", "더 세움"] };
-const gap = (v, r, metric) => (v < r.min ? `${r.min - v}° ${GAP[metric][0]}` : `${v - r.max}° ${GAP[metric][1]}`);
+const gap = (v, r, metric) => `${Math.round(v < r.min ? r.min - v : v - r.max)}° ${GAP[metric][v < r.min ? 0 : 1]}`;
+// 힘 전달 타이밍(ms). 예전에 저장한 결과엔 chain_ms 가 없어서 chain_peaks 로 계산
+const chainMs = k => data.metrics.chain_ms?.[k] ?? ms(data.metrics.chain_peaks[k]);
+const sign = t => (t > 0 ? "+" : "") + t;
 
 function renderFeedback() {
   const items = evalr.rows.filter(r => r.tip).map(r => h("li", {},
@@ -760,9 +764,10 @@ function renderFeedback() {
     h("p", {}, pl.tip),
     h("p", { class: "detail" }, `내 스윙 ${pl.value}° · 프로 ${pl.ref.min}~${pl.ref.max}° · ${gap(pl.value, pl.ref, "스윙 면 기울기")}`)));
   if (evalr.chainTip) items.push(h("li", {},
-    h("h3", {}, icon("alert"), "힘 전달 순서"),
+    h("h3", {}, icon("alert"), "힘 전달 타이밍"),
     h("p", {}, evalr.chainTip),
-    h("p", { class: "detail" }, "가장 빨라진 순서: " + [...CHAIN].sort((a, b) => data.metrics.chain_peaks[a] - data.metrics.chain_peaks[b]).join(" → "))));
+    h("p", { class: "detail" }, evalr.chain.filter(c => c.ref?.status === "low" || c.ref?.status === "high")
+      .map(c => `${c.part} ${sign(c.ms)}ms (프로 ${sign(c.ref.min)}~${sign(c.ref.max)}ms)`).join(" · "))));
   if (!items.length) items.push(h("li", {}, h("p", { class: "none" },
     "프로 기준을 벗어난 항목이 없어요." + (noRef().length ? ` ${noRef().join(", ")}은 아직 프로 기준이 없어서 아래에 수치만 보여 드려요.` : ""))));
   $("fb").replaceChildren(...items);
@@ -772,7 +777,8 @@ function renderCompare() {
   const m = data.metrics, sp = evalr.speed;
   $("speed").replaceChildren(
     h("strong", {}, `${m.impact_speed.toFixed(1)} m/s`),
-    h("span", {}, "임팩트 손목 속도" + (sp ? ` · 프로 참고 약 ${sp.value} m/s` : "")));
+    h("span", {}, "임팩트 손목 속도" + (!sp ? "" : sp.min === undefined ? ` · 프로 참고 약 ${sp.value} m/s`
+      : ` · 프로 ${sp.min}~${sp.max} m/s ${sp.status === "ok" ? "✓" : "⚠"}`)));
   const pl = evalr.plane, pr = pl.ref;
   $("plane").replaceChildren(
     h("strong", {}, pl.value === null ? "–" : `${pl.value}°`),
@@ -823,20 +829,22 @@ function renderCompare() {
 }
 
 function renderChain() {
-  const m = data.metrics, start = m.phases["백스윙"], end = m.phases["임팩트"], span = Math.max(1, end - start);
-  const total = roundHalfEven(((end - start) / data.fps) * 1000);
+  // 임팩트 -500ms ~ +250ms 축. 점 = 내 스윙에서 가장 빨라진 시점, 띠 = 도 대표 선수 범위
+  const pos = t => Math.min(100, Math.max(0, ((t + 500) / 750) * 100));
   const lanes = CHAIN.map(k => {
-    const at = ((m.chain_peaks[k] - start) / span) * 100, t = ms(m.chain_peaks[k]);
+    const t = chainMs(k), r = evalr.chain.find(c => c.part === k)?.ref;
+    const band = r?.min !== undefined ? h("b", { class: "band", style: `left:${pos(r.min)}%;width:${pos(r.max) - pos(r.min)}%` }) : null;
     return h("div", { class: "lane" }, h("span", {}, k),
-      h("div", { class: "track" }, h("i", { class: "dot" + (at > 70 ? " flip" : ""), style: `left:${at}%` },
-        h("em", {}, t === 0 ? "임팩트" : `${t}ms`))));
+      h("div", { class: "track" }, band, h("i", { class: "dot" + (pos(t) > 70 ? " flip" : ""), style: `left:${pos(t)}%` },
+        h("em", {}, t === 0 ? "임팩트" : `${sign(t)}ms`))));
   });
+  const ok = evalr.chainOk;
   $("chain").replaceChildren(
-    h("div", { class: "axis" }, h("span", {}, `백스윙 끝 (-${total}ms)`), h("span", {}, "임팩트")),
+    h("div", { class: "axis" }, h("span", {}, "-500ms"), h("span", {}, "임팩트"), h("span", {}, "+250ms")),
     ...lanes,
-    m.chain_ok
-      ? h("p", { class: "verdict ok" }, icon("check"), "골반 → 어깨 → 팔꿈치 → 손목, 순서대로 이어졌어요.")
-      : h("p", { class: "verdict warn" }, icon("alert"), "순서가 어긋났어요. 팔로만 치는 스윙일 수 있어요."));
+    ok == null ? h("p", { class: "verdict" }, "프로 기준이 없어 타이밍만 보여 드려요.")
+      : ok ? h("p", { class: "verdict ok" }, icon("check"), "모든 부위가 도 대표 선수 타이밍 범위 안이에요.")
+      : h("p", { class: "verdict warn" }, icon("alert"), "범위를 벗어난 부위가 있어요. 띠 밖의 점을 확인해 보세요."));
 }
 
 function showResult() {
@@ -1276,13 +1284,14 @@ $("logout").onclick = async () => { const { auth, au } = await fb(); await auth.
 // 로그인한 사람만, 숫자·판정만 보낸다(영상·좌표 X). 서버가 하루 횟수를 제한한다.
 const COACH_URL = "https://ttt-coach.dchkimppi.workers.dev";
 function coachPayload() {
-  const m = data.metrics, pk = m.chain_peaks;
+  const m = data.metrics;
   const off = evalr.rows.filter(r => r.ref && (r.ref.status === "low" || r.ref.status === "high"))
     .map(r => ({ phase: r.phase, metric: r.metric, status: r.ref.status, value: r.value, min: r.ref.min, max: r.ref.max }));
   const pl = evalr.plane;
   if (pl.ref && (pl.ref.status === "low" || pl.ref.status === "high")) off.push({ phase: "스윙", metric: "스윙 면 기울기", status: pl.ref.status, value: pl.value, min: pl.ref.min, max: pl.ref.max });
   return {
-    angles: m.angles, order: [...CHAIN].sort((a, b) => pk[a] - pk[b]), chainOk: m.chain_ok,
+    angles: m.angles, chainOk: evalr.chainOk,
+    timing: Object.fromEntries(evalr.chain.map(c => [c.part, { ms: chainMs(c.part), status: c.ref?.status ?? null, min: c.ref?.min ?? null, max: c.ref?.max ?? null }])),
     speed: m.impact_speed, plane: m.swing_plane ?? null, score: evalr.score.total,
     hand: data.wrist_index === wristIndex("L") ? "L" : "R", off,
   };

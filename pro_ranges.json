@@ -1,21 +1,78 @@
 {
-  "_note": "논문에서 가져온 포핸드 탑스핀 기준값. 측정 장비(모션캡처/IMU)가 이 앱(폰 영상 + MediaPipe)과 달라 참고용. 범위는 평균 ± 표준편차.",
+  "_note": "공개 데이터셋(도 대표 여자 선수 34명)을 TTT 와 같은 코드로 분석한 평균 ± 표준편차. 촬영 각도(오른쪽 앞 45°)가 사용자 영상과 다를 수 있어 참고용.",
   "impact_speed": {
-    "value": 5.5,
-    "source": "Bańkosz & Winiarski 2025, J Sports Sci Med 24:311 — 폴란드 국가대표 남자 8명, 포핸드 탑스핀 중 손 최대 속도 중앙값 5.44~5.5 m/s (IMU). 라켓 속도는 13~14.6 m/s (Bańkosz & Winiarski 2018, 여자 주니어 10명)"
+    "min": 5.6,
+    "max": 6.9,
+    "source": "Lyu et al. 2025, Front. Sports Act. Living — 도 대표 여자 선수 34명 포핸드 340개 (MediaPipe, 100fps, figshare 28881086, CC BY 4.0). 평균 ± 표준편차"
   },
   "angles": {
     "백스윙": {
+      "팔꿈치": {
+        "min": 120.9,
+        "max": 144.7,
+        "source": "Lyu et al. 2025, Front. Sports Act. Living — 도 대표 여자 선수 34명 포핸드 340개 (MediaPipe, 100fps, figshare 28881086, CC BY 4.0). 평균 ± 표준편차"
+      },
       "무릎": {
-        "min": 130, "max": 148,
-        "source": "He et al. 2021, PeerJ 9:e10841 — 중국 국가 1급 남자 5명, 백스윙 끝 무릎 굴곡 41.2 ± 8.8° (Vicon). 굴곡각을 사이각(180 - 굴곡)으로 환산"
+        "min": 125.6,
+        "max": 144.7,
+        "source": "Lyu et al. 2025, Front. Sports Act. Living — 도 대표 여자 선수 34명 포핸드 340개 (MediaPipe, 100fps, figshare 28881086, CC BY 4.0). 평균 ± 표준편차"
+      },
+      "몸통 꼬임": {
+        "min": 36.4,
+        "max": 47.8,
+        "source": "Lyu et al. 2025, Front. Sports Act. Living — 도 대표 여자 선수 34명 포핸드 340개 (MediaPipe, 100fps, figshare 28881086, CC BY 4.0). 평균 ± 표준편차"
+      }
+    },
+    "임팩트": {
+      "팔꿈치": {
+        "min": 90.3,
+        "max": 105.4,
+        "source": "Lyu et al. 2025, Front. Sports Act. Living — 도 대표 여자 선수 34명 포핸드 340개 (MediaPipe, 100fps, figshare 28881086, CC BY 4.0). 평균 ± 표준편차"
+      },
+      "무릎": {
+        "min": 129.9,
+        "max": 144.8,
+        "source": "Lyu et al. 2025, Front. Sports Act. Living — 도 대표 여자 선수 34명 포핸드 340개 (MediaPipe, 100fps, figshare 28881086, CC BY 4.0). 평균 ± 표준편차"
+      },
+      "몸통 꼬임": {
+        "min": 22.8,
+        "max": 31.9,
+        "source": "Lyu et al. 2025, Front. Sports Act. Living — 도 대표 여자 선수 34명 포핸드 340개 (MediaPipe, 100fps, figshare 28881086, CC BY 4.0). 평균 ± 표준편차"
       }
     },
     "피니시": {
+      "팔꿈치": {
+        "min": 90.2,
+        "max": 113.5,
+        "source": "Lyu et al. 2025, Front. Sports Act. Living — 도 대표 여자 선수 34명 포핸드 340개 (MediaPipe, 100fps, figshare 28881086, CC BY 4.0). 평균 ± 표준편차"
+      },
       "무릎": {
-        "min": 115, "max": 160,
-        "source": "He et al. 2021, PeerJ 9:e10841 — 같은 선수, 포워드 스윙 끝 무릎 굴곡 42.5 ± 22.5°, 사이각으로 환산"
+        "min": 122.2,
+        "max": 141.7,
+        "source": "Lyu et al. 2025, Front. Sports Act. Living — 도 대표 여자 선수 34명 포핸드 340개 (MediaPipe, 100fps, figshare 28881086, CC BY 4.0). 평균 ± 표준편차"
+      },
+      "몸통 꼬임": {
+        "min": 4.7,
+        "max": 14.0,
+        "source": "Lyu et al. 2025, Front. Sports Act. Living — 도 대표 여자 선수 34명 포핸드 340개 (MediaPipe, 100fps, figshare 28881086, CC BY 4.0). 평균 ± 표준편차"
       }
+    }
+  },
+  "swing_plane": {
+    "min": 32.5,
+    "max": 59.6,
+    "source": "Lyu et al. 2025, Front. Sports Act. Living — 도 대표 여자 선수 34명 포핸드 340개 (MediaPipe, 100fps, figshare 28881086, CC BY 4.0). 평균 ± 표준편차"
+  },
+  "chain": {
+    "골반": {
+      "min": 21,
+      "max": 76,
+      "source": "Lyu et al. 2025, Front. Sports Act. Living — 도 대표 여자 선수 34명 포핸드 340개 (MediaPipe, 100fps, figshare 28881086, CC BY 4.0). 평균 ± 표준편차"
+    },
+    "어깨": {
+      "min": 28,
+      "max": 70,
+      "source": "Lyu et al. 2025, Front. Sports Act. Living — 도 대표 여자 선수 34명 포핸드 340개 (MediaPipe, 100fps, figshare 28881086, CC BY 4.0). 평균 ± 표준편차"
     }
   }
 }

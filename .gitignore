@@ -7,3 +7,4 @@ __pycache__/
 .impeccable/mocks/
 worker/.wrangler/
 worker/node_modules/
+data/

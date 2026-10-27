@@ -101,10 +101,11 @@ def analyze(pts, fps, hand="R"):
     knee = angle(J("HIP"), J("KNEE"), J("ANKLE"))
     twist = np.abs((shoulders - hips + 180) % 360 - 180)
 
-    # 힘 전달: 백스윙~임팩트 사이에서 골반 → 어깨 → 팔꿈치 → 손목 순으로 최고 속도에 도달해야 함
+    # 힘 전달 타이밍: 임팩트 0.5초 전 ~ 0.25초 뒤에서 각 부위가 가장 빨라진 시점.
+    # 공개 데이터(도 대표 선수)에선 골반·어깨 회전이 임팩트 뒤에 가장 빨라서, 교과서식 순서 대신 그 선수들의 타이밍 범위와 비교한다.
     rate = lambda x: np.abs(np.gradient(x)) * fps
-    w = slice(phases["백스윙"], impact + 1)
-    peaks = {k: phases["백스윙"] + int(np.argmax(v[w]))
+    lo, hi = max(0, impact - int(0.5 * fps + 0.5)), min(len(speed) - 1, impact + int(0.25 * fps + 0.5))
+    peaks = {k: lo + int(np.argmax(v[lo:hi + 1]))
              for k, v in zip(CHAIN, (rate(hips), rate(shoulders), rate(elbow), speed))}
 
     return {
@@ -113,7 +114,7 @@ def analyze(pts, fps, hand="R"):
         "angles": {ph: {"팔꿈치": round(float(elbow[f])), "무릎": round(float(knee[f])),
                         "몸통 꼬임": round(float(twist[f]))} for ph, f in phases.items()},
         "chain_peaks": peaks,
-        "chain_ok": sorted(CHAIN, key=lambda k: (peaks[k], CHAIN.index(k))) == list(CHAIN),
+        "chain_ms": {k: int(round((f - impact) / fps * 1000)) for k, f in peaks.items()},
         "swing_plane": swing_plane(wrist[phases["백스윙"]:phases["피니시"] + 1]),
         "speed": speed,
     }
@@ -134,12 +135,13 @@ def swing_plane(seg):
 
 def score(m, ref=None):
     """참고 점수. 항목마다 10점 만점이고, 종합은 기준이 있는 항목들의 평균.
-    힘 전달(골반→어깨→팔꿈치→손목 3구간 중 순서가 맞는 비율), 프로 범위(범위 안 항목 비율),
-    손목 속도(프로 기준 대비, 넘으면 만점)."""
+    힘 전달(각 부위 타이밍이 프로 범위 안인 비율), 프로 범위(각도 범위 안 비율), 손목 속도(프로 기준 대비, 넘으면 만점)."""
     ref = ref or {}
     r1 = lambda x: round(x * 10) / 10  # analyze.js 와 같은 반올림(0.5 는 짝수 쪽)
-    pk = m["chain_peaks"]
-    parts = [("힘 전달", 10 * sum(pk[a] <= pk[b] for a, b in zip(CHAIN, CHAIN[1:])) / 3, 10)]
+    parts = []
+    ch = [(m["chain_ms"][k], r) for k, r in ref.get("chain", {}).items() if "min" in r and k in m.get("chain_ms", {})]
+    if ch:
+        parts.append(("힘 전달", 10 * sum(r["min"] <= v <= r["max"] for v, r in ch) / len(ch), 10))
     checks = [(m["angles"][ph][k], r) for ph, rs in ref.get("angles", {}).items() for k, r in rs.items()
               if "min" in r and k in m["angles"].get(ph, {})]
     if m.get("swing_plane") is not None and "min" in ref.get("swing_plane", {}):
@@ -150,6 +152,8 @@ def score(m, ref=None):
     if sp:
         parts.append(("손목 속도", 10 * min(1, m["impact_speed"] / sp.get("min", sp.get("value"))), 10))
     parts = [(n, r1(g), mx) for n, g, mx in parts]
+    if not parts:  # 비교할 기준이 하나도 없음
+        return 0.0, []
     return r1(sum(g for _, g, _ in parts) / sum(mx for *_, mx in parts) * 10), parts
 
 
@@ -179,11 +183,10 @@ def report(m, fps, ref=None):
     plane = m.get("swing_plane")
     lines.append("스윙 면 기울기: " + (f"{plane}°" + check(plane, ref.get("swing_plane"), "스윙", "스윙 면 기울기")
                                     if plane is not None else "측정 불가 (손목 궤적이 거의 직선)"))
-    order = " → ".join(sorted(CHAIN, key=lambda k: m["chain_peaks"][k]))
-    t = {k: (f - m["phases"]["임팩트"]) / fps * 1000 for k, f in m["chain_peaks"].items()}
-    lines.append(f"힘 전달 순서: {order} " + ("✓ 정상" if m["chain_ok"] else "⚠ 순서가 어긋남 (팔로만 치는 스윙 의심)"))
-    lines.append("  최고속도 시점(임팩트 기준): " + ", ".join(f"{k} {v:+.0f}ms" for k, v in t.items()))
-    if not m["chain_ok"]:
+    cref, n_off = ref.get("chain", {}), len(feedback)
+    lines.append("힘 전달 타이밍(가장 빨라진 시점, 임팩트 기준): "
+                 + ", ".join(f"{k} {m['chain_ms'][k]:+d}ms" + check(m["chain_ms"][k], cref.get(k)) for k in CHAIN))
+    if any("min" in r and not r["min"] <= m["chain_ms"][k] <= r["max"] for k, r in cref.items()):
         feedback.append(f"[힘 전달] {TIPS['힘 전달']}")
     if feedback:
         lines += ["", "피드백:"] + [f"  - {f}" for f in feedback]

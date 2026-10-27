@@ -171,7 +171,7 @@ function select(it) {
     h("span", {}, "규칙 점수 ", h("b", {}, e.score.total.toFixed(1))),
     h("span", {}, "손목 ", h("b", {}, `${it.metrics.impact_speed.toFixed(1)} m/s`)),
     h("span", {}, "스윙 면 ", h("b", {}, it.metrics.swing_plane == null ? "–" : `${it.metrics.swing_plane}°`)),
-    h("span", {}, "힘 전달 ", h("b", {}, it.metrics.chain_ok ? "순서 정상" : "순서 어긋남")));
+    h("span", {}, "힘 전달 ", h("b", {}, e.chainOk == null ? "–" : e.chainOk ? "프로 범위" : "범위 밖")));
   $("angles").replaceChildren(...["팔꿈치", "무릎", "몸통 꼬임"].map(k => h("tr", {}, h("th", {}, k), ...PHASES.map(p => h("td", {}, `${it.metrics.angles[p][k]}°`)))));
   const s = it.label?.score ?? Math.round(e.score.total * 2) / 2;
   $("score").value = s; $("scoreOut").textContent = (+s).toFixed(1);

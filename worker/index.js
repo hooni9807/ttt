@@ -123,11 +123,13 @@ function shape(metric, v) {
 }
 
 function prompt(d) {
+  // 힌트는 오른손잡이 기준이라 왼손잡이면 오른쪽↔왼쪽을 바꾼다
+  const side = t => d.hand === "왼손" ? t.replace(/오른|왼/g, w => (w === "오른" ? "왼" : "오른")) : t;
   const r1 = x => Math.round(x * 10) / 10;
   // 고칠 점: 각도·스윙 면은 범위 밖 정도가 큰 순서, 목표는 범위 가운데
   const issues = d.off.map(o => {
     const target = Math.round((o.min + o.max) / 2), need = Math.round(o.status === "low" ? o.min - o.value : o.value - o.max);
-    const [cause, effect, fix] = MEANING[`${o.phase} ${o.metric}`]?.[o.status] ?? ["", "", ""];
+    const [cause, effect, fix] = (MEANING[`${o.phase} ${o.metric}`]?.[o.status] ?? ["", "", ""]).map(side);
     const pl = d.place[o.phase];
     return { size: need / (o.max - o.min), text:
       `- ${o.phase === "스윙" ? "" : o.phase + " "}${o.metric}: 지금 ${o.value}°(${shape(o.metric, o.value)}), 도 대표 선수 ${o.min}~${o.max}° → 최소 ${need}° ${o.status === "low" ? "더 크게" : "더 작게"}, 목표 약 ${target}°(${shape(o.metric, target)})` +

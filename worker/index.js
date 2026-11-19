@@ -5,6 +5,7 @@
 const ORIGINS = ["https://hooni9807.github.io", "http://127.0.0.1:8811", "http://localhost:8811"];
 const PROJECT = "ttt-swing";
 const DAILY = 20;
+const GLOBAL_DAILY = 2000; // 전체 사용자 합계 하루 상한(비용 상한). KV 라 근사치다.
 const MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
 const JWKS = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 
@@ -197,7 +198,11 @@ export default {
     const day = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); // 한국 날짜 기준
     const key = `${uid}:${day}`, used = Number(await env.LIMIT.get(key)) || 0;
     if (used >= DAILY) return json({ error: `오늘은 AI 코치를 ${DAILY}번 모두 썼어요. 내일 다시 써 주세요.` }, 429, origin);
+    const gkey = `global:${day}`, gused = Number(await env.LIMIT.get(gkey)) || 0;
+    if (gused >= GLOBAL_DAILY) return json({ error: "오늘 AI 코치 사용량이 모두 찼어요. 내일 다시 써 주세요." }, 429, origin);
+    // ponytail: KV get→put 은 원자적이지 않아 동시 요청 시 약간 초과 가능. 엄격히 하려면 Rate Limiting 바인딩/Durable Object.
     await env.LIMIT.put(key, String(used + 1), { expirationTtl: 2 * 86400 });
+    await env.LIMIT.put(gkey, String(gused + 1), { expirationTtl: 2 * 86400 });
 
     try {
       const out = await env.AI.run(MODEL, { messages: prompt(data), max_tokens: 1200, temperature: 0.3 });

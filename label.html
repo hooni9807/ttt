@@ -145,6 +145,8 @@ async function loadAll() {
 }
 
 function shown() { return items.filter(it => filter === "all" || (filter === "done") === !!it.label); }
+// 잘못된 문서 하나가 목록 전체를 깨뜨리지 않게
+function ruleScore(it) { try { return evaluate(it.metrics, ref).score.total.toFixed(1); } catch { return "오류"; } }
 function renderList() {
   const list = shown();
   $("count").textContent = `${list.length}개 · 전체 ${items.length} · 평가 ${items.filter(i => i.label).length}`;
@@ -152,7 +154,7 @@ function renderList() {
     const b = h("button", { type: "button", "aria-current": String(cur?.id === it.id) },
       h("span", { class: "when" }, fmt(it.createdAt)),
       h("span", { class: "lab" + (it.label ? "" : " none") }, it.label ? it.label.score.toFixed(1) : "미평가"),
-      h("span", { class: "sub" }, `${it.hand === "L" ? "왼손" : "오른손"} · ${it.fps}fps · 규칙 점수 ${evaluate(it.metrics, ref).score.total.toFixed(1)}`));
+      h("span", { class: "sub" }, `${it.hand === "L" ? "왼손" : "오른손"} · ${it.fps}fps · 규칙 점수 ${ruleScore(it)}`));
     b.onclick = () => select(it);
     return h("li", {}, b);
   }));

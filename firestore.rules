@@ -23,6 +23,11 @@ service cloud.firestore {
                     && request.resource.data.createdAt == request.time
                     && request.resource.data.fps is number && request.resource.data.fps > 0 && request.resource.data.fps <= 480
                     && request.resource.data.hand in ['L', 'R']
+                    && request.resource.data.app is string && request.resource.data.app.size() <= 32
+                    && request.resource.data.window is map
+                    && request.resource.data.window.keys().hasOnly(['start', 'end'])
+                    && request.resource.data.window.start is number && request.resource.data.window.end is number
+                    && request.resource.data.metrics is map
                     && request.resource.data.frames is string && request.resource.data.frames.size() < 600000
                     && (!('frames2d' in request.resource.data)
                         || (request.resource.data.frames2d is string && request.resource.data.frames2d.size() < 400000));
